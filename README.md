@@ -31,5 +31,16 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License MIT"/>
   <img src="https://img.shields.io/badge/Version-1.0.0--beta_Final_v2-blue" alt="Version"/>
 </p>
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/github-copilot"><img src="https://avatars.githubusercontent.com/u/1234567?v=4" width="100px;" alt=""/><br /><sub><b>GitHub Copilot</b></sub></a><br />🤖</td>
+  </tr>
+</table>
+<!-- markdownlint-enable -->
+<!-- prettier-ignore-end -->
+<!-- ALL-CONTRIBUTORS-LIST:END -->
 
 Headless REST application for 3D model processing
