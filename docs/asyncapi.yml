@@ -1,0 +1,182 @@
+asyncapi: 3.1.0
+info:
+  title: Контракты сообщений Restful Slice
+  version: 1.0.0
+  description: >-
+    Контракт AsyncAPI для событий RabbitMQ между Order Service и Slicing Worker.
+    Определяет операции публикации и подписки для процесса нарезки STL-моделей.
+
+servers:
+  rabbitmq:
+    host: localhost:5672
+    protocol: amqp
+    description: Локальный брокер RabbitMQ
+
+channels:
+  slicing.jobs:
+    address: slicing.jobs
+    description: Очередь запросов на нарезку.
+    messages:
+      SliceRequested:
+        $ref: '#/components/messages/SliceRequestedMessage'
+
+  slicing.results:
+    address: slicing.results
+    description: Очередь результатов нарезки (успех или ошибка).
+    messages:
+      SliceCompleted:
+        $ref: '#/components/messages/SliceCompletedMessage'
+      SliceFailed:
+        $ref: '#/components/messages/SliceFailedMessage'
+
+operations:
+  # Операции для Order Service
+  sendSliceRequest:
+    action: send
+    channel:
+      $ref: '#/channels/slicing.jobs'
+    summary: Order Service отправляет запрос на нарезку
+    messages:
+      - $ref: '#/channels/slicing.jobs/messages/SliceRequested'
+
+  receiveSlicingResult:
+    action: receive
+    channel:
+      $ref: '#/channels/slicing.results'
+    summary: Order Service получает результат нарезки
+    messages:
+      - $ref: '#/channels/slicing.results/messages/SliceCompleted'
+      - $ref: '#/channels/slicing.results/messages/SliceFailed'
+
+  # Операции для Slicing Worker
+  processSliceRequest:
+    action: receive
+    channel:
+      $ref: '#/channels/slicing.jobs'
+    summary: Slicing Worker получает и обрабатывает файл
+    messages:
+      - $ref: '#/channels/slicing.jobs/messages/SliceRequested'
+
+  publishSlicingResult:
+    action: send
+    channel:
+      $ref: '#/channels/slicing.results'
+    summary: Slicing Worker публикует итог работы
+    messages:
+      - $ref: '#/channels/slicing.results/messages/SliceCompleted'
+      - $ref: '#/channels/slicing.results/messages/SliceFailed'
+
+components:
+  messages:
+    SliceRequestedMessage:
+      name: SliceRequestedMessage
+      title: Запрос на нарезку
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/SliceRequestedEvent'
+
+    SliceCompletedMessage:
+      name: SliceCompletedMessage
+      title: Нарезка завершена
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/SliceCompletedEvent'
+
+    SliceFailedMessage:
+      name: SliceFailedMessage
+      title: Ошибка нарезки
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/SliceFailedEvent'
+
+  schemas:
+    EventMeta:
+      type: object
+      additionalProperties: false
+      required:
+        - event_id
+        - event_type
+        - created_at
+        - source
+        - spec_version
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          enum: [slice.requested, slice.completed, slice.failed]
+        created_at:
+          type: string
+          format: date-time
+        source:
+          type: string
+          example: order-service
+        spec_version:
+          type: string
+          example: 1.0.0
+
+    SliceRequestedPayload:
+      type: object
+      additionalProperties: false
+      required: [order_id, customer_id, stl_object_key, preset_id, material_type]
+      properties:
+        order_id: { type: string, format: uuid }
+        customer_id: { type: string, format: uuid }
+        stl_object_key:
+          type: string
+          example: stl/orders/3f8a6aef/model.stl
+        preset_id: { type: string, format: uuid }
+        material_type: { type: string, example: PLA }
+        priority:
+          type: string
+          default: normal
+          enum: [low, normal, high]
+
+    SliceCompletedPayload:
+      type: object
+      additionalProperties: false
+      required: [order_id, status, gcode_object_key, print_time_sec, filament_weight_g]
+      properties:
+        order_id: { type: string, format: uuid }
+        status: { type: string, const: completed }
+        gcode_object_key: { type: string, example: gcode/orders/3f8a6aef/result.gcode }
+        print_time_sec: { type: integer, minimum: 1 }
+        filament_weight_g: { type: number, minimum: 0.001 }
+        filament_length_m: { type: number }
+        slicer_version: { type: string, example: "OrcaSlicer 2.1.1" }
+
+    SliceFailedPayload:
+      type: object
+      additionalProperties: false
+      required: [order_id, error_code, error_message, retryable]
+      properties:
+        order_id: { type: string, format: uuid }
+        error_code: { type: string, example: STL_INVALID }
+        error_message: { type: string }
+        retryable: { type: boolean }
+
+    # Композитные схемы (Событие = Мета + Нагрузка)
+    SliceRequestedEvent:
+      allOf:
+        - $ref: '#/components/schemas/EventMeta'
+        - type: object
+          properties:
+            event_type: { const: slice.requested }
+            payload: { $ref: '#/components/schemas/SliceRequestedPayload' }
+
+    SliceCompletedEvent:
+      allOf:
+        - $ref: '#/components/schemas/EventMeta'
+        - type: object
+          properties:
+            event_type: { const: slice.completed }
+            payload: { $ref: '#/components/schemas/SliceCompletedPayload' }
+
+    SliceFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/EventMeta'
+        - type: object
+          properties:
+            event_type: { const: slice.failed }
+            payload: { $ref: '#/components/schemas/SliceFailedPayload' }
