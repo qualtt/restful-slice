@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # 1. База данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: 3d_postgres
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # 2. Брокер сообщений (RabbitMQ с веб-интерфейсом)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: 3d_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RMQ_PASSWORD}
+    ports:
+      - "5672:5672"   # Порт для кода
+      - "15672:15672" # Порт для админки в браузере
+    volumes:
+      - rmqdata:/var/lib/rabbitmq
+
+  # 3. Хранилище для STL файлов (MinIO)
+  minio:
+    image: minio/minio
+    container_name: 3d_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    ports:
+      - "9000:9000" # Порт для API
+      - "9001:9001" # Порт для админки
+    volumes:
+      - miniodata:/data
+
+volumes:
+  pgdata:
+  rmqdata:
+  miniodata:
