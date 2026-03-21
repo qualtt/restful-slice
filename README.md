@@ -59,12 +59,12 @@ graph TD
     User([Пользователь]) -->|"HTTP REST/JSON"| Gateway["NGINX API Gateway<br/><small>Маршрутизация, балансировка,<br/>client_max_body_size</small>"]:::gateway
     
     %% API Маршруты
-    Gateway -->|"GET/POST /api/orders"| OrderSvc["<b>1. Order Service</b><br/><small>Сервис заказов</small>"]:::service
-    Gateway -->|"GET/POST /api/inventory"| InvSvc["<b>3. Inventory & Pricing Service</b><br/><small>Склад и биллинг</small>"]:::service
+    Gateway -->|"GET/POST /api/orders"| OrderSvc["<b>1. Order Service</b><br/><small>Оркестратор заказов</small>"]:::service
+    Gateway -->|"GET/POST /api/inventory"| InvSvc["<b>3. Inventory Service</b><br/><small>Склад, пресеты, цены</small>"]:::service
 
-    %% Базы данных
-    OrderSvc -->|"TCP/IP: Чтение/Запись<br/>Заказы, Пресеты"| PgOrders[("PostgreSQL: Orders")]:::storage
-    InvSvc -->|"TCP/IP: Чтение/Запись<br/>Материалы, Остатки"| PgInv[("PostgreSQL: Inventory")]:::storage
+    %% Базы данных (Логическое разделение схем)
+    OrderSvc -->|"TCP/IP: orders_schema<br/>Заказы, Пользователи"| PgOrders[("PostgreSQL<br/>(Схема: Orders)")]:::storage
+    InvSvc -->|"TCP/IP: inventory_schema<br/>Материалы, Профили, Резервы"| PgInv[("PostgreSQL<br/>(Схема: Inventory)")]:::storage
 
     %% Работа с файлами (MinIO)
     OrderSvc -->|"S3 API: Сохраняет STL"| Minio[("MinIO / S3<br/><small>Файлы (STL / G-Code)</small>")]:::storage
@@ -73,12 +73,16 @@ graph TD
     OrderSvc -->|"AMQP: Публикация задачи<br/>{order_id, file}"| RMQ[["RabbitMQ Broker"]]:::broker
     Worker["<b>2. Slicing Worker</b><br/><small>Воркер нарезки</small>"]:::worker -->|"AMQP: Потребление задач<br/>Подписка на очередь"| RMQ
 
+    %% Возврат результатов нарезки
+    Worker -->|"AMQP: Возврат результата<br/>{order_id, weight, time}"| RMQ
+    RMQ -->|"AMQP: Чтение результатов"| OrderSvc
+
     %% Воркер - Файлы и стороннее ПО
     Worker -->|"S3 API: Скачивает STL<br/>Загружает G-code"| Minio
     Worker -->|"CLI / Local Socket"| OrcaSlicer["Orca Slicer"]:::external
 
-    %% Межсервисное взаимодействие (Воркер -> Инвентарь)
-    Worker -->|"HTTP/REST (или gRPC)<br/>Запрос цены, списание пластика"| InvSvc
+    %% Межсервисное взаимодействие (Оркестрация)
+    OrderSvc -->|"HTTP/REST (Internal API)<br/>Резерв пластика, запрос цены"| InvSvc
 
     %% Жизненный цикл заказа (Справочно)
     subgraph Lifecycle [Жизненный цикл заказа]
@@ -89,33 +93,128 @@ graph TD
 ```
 ## 🧩 Архитектура микросервисов
 
-Проект `restful-slice` (headless-платформа для 3D-печати) состоит из следующих ключевых компонентов:
+Проект `restful-slice` (headless-платформа для 3D-печати) состоит из следующих ключевых компонентов. Система построена по принципу оркестрации, где главным управляющим узлом выступает Order Service.
 
-### 1. Order Service (Сервис заказов)
-* **Назначение**: Прием и управление жизненным циклом заказов на 3D-печать.
+### 1. Order Service (Сервис заказов и Оркестратор)
+* **Назначение**: Авторизация пользователей, приём заказов и управление всем их жизненным циклом (Оркестрация бизнес-процесса).
 * **Основные функции**:
-  * Загрузка пользовательских STL файлов (сохраняются в S3/MinIO).
-  * Создание сущности заказа и привязка к ней выбранного профиля печати (`presetId`).
+  * Идентификация клиентов по `X-API-Key`.
+  * Прием пользовательских STL файлов (сохраняются в S3/MinIO).
+  * Создание сущности заказа и привязка к ней выбранного профиля печати (`profileId`).
   * Публикация задач на "нарезку" (slicing) в брокер очередей (RabbitMQ).
-  * Выдача статуса готовности заказа клиенту через `/api/orders`.
+  * **Оркестрация**: Получение результатов от Воркера и вызов внутреннего API (`Internal API`) сервиса склада для резервирования пластика и получения итоговой цены.
+  * Выдача текущего статуса заказа клиенту через внешнее API `/api/orders`.
 
 ### 2. Slicer Worker (Воркер нарезки)
-* **Назначение**: Фоновый обработчик (consumer), выполняющий тяжелую математическую операцию конвертации 3D-модели в инструкции для принтера.
+* **Назначение**: Фоновый, независимый обработчик (stateless consumer). Выполняет исключительно тяжелую математическую операцию конвертации 3D-модели в инструкции для принтера, ничего не зная о бизнес-логике (деньгах, пользователях или складе).
 * **Основные функции**:
   * Чтение задач из очередей RabbitMQ.
-  * Скачивание STL-файлов из MinIO.
-  * Интеграция с движком **Orca Slicer** для генерации G-code.
-  * Подсчет затраченного пластика и времени, взаимодействие с `Inventory Service` для тарификации.
+  * Скачивание исходных STL-файлов из MinIO.
+  * Интеграция с движком **Orca Slicer** (через CLI) для генерации G-code.
+  * Парсинг логов слайсера для извлечения точного веса затраченного пластика (в граммах) и времени печати.
   * Загрузка итогового G-code обратно в MinIO.
+  * **Возврат результатов** нарезки обратно в `Order Service` (через очередь ответов RabbitMQ или внутренний webhook).
 
 ### 3. Inventory & Pricing Service (Склад и биллинг)
-* **Назначение**: Управление логистикой материалов (филаментов) и ценообразованием.
+* **Назначение**: Управление логистикой материалов (филаментов), профилями печати и ценообразованием.
 * **Основные функции**:
-  * Хранение базы пластика (цвета, типы, остатки кг).
-  * Калькуляция стоимости печати на основе веса сгенерированного G-code.
-  * Списание остатков со склада при подтверждении печати `/api/inventory`.
+  * Выдача клиентам списка доступных Профилей Печати (бандл: Принтер + Материал + Настройки качества + Наценка) через внешнее API `/api/inventory/profiles`.
+  * Хранение базы физических катушек пластика (цвета, типы, фактические остатки в граммах).
+  * **Система резервирования (Internal API)**: По скрытому запросу от `Order Service` проверяет наличие нужного объема пластика, временно "замораживает" (резервирует) его, рассчитывает стоимость печати и возвращает цену оркестратору.
+  * Окончательное списание зарезервированного пластика (или возврат на склад при отмене заказа).
+ 
+## ER-диаграмма
+```mermaid
 
----
+erDiagram
+
+
+    USERS {
+        uuid id PK
+        varchar username
+        varchar api_key "UNIQUE (Ключ авторизации X-API-Key)"
+        timestamp created_at
+    }
+
+    ORDERS {
+        uuid id PK
+        uuid user_id FK "Ссылка на USERS.id"
+        integer profile_id "ЛОГИЧЕСКАЯ ССЫЛКА на PRINT_PROFILES"
+        varchar stl_binary_path "Путь к файлу в MinIO"
+        varchar gcode_binary_path "Путь к G-code в MinIO (после нарезки)"
+        decimal weight_grams "Вес, рассчитанный воркером"
+        integer duration_seconds "Время печати, рассчитанное воркером"
+        decimal total_price "Цена, полученная от Inventory API"
+        varchar status "pending, slicing, priced, confirmed, printing, completed, failed, cancelled"
+        text error_message "Лог ошибки слайсера или нехватки пластика"
+        timestamp created_at
+        timestamp updated_at
+    }
+
+
+    INVENTORY {
+        integer id PK
+        varchar label "e.g. Esun PLA White 1kg"
+        varchar material_type "PLA, ABS, PETG, TPU"
+        decimal total_grams "Фактический (физический) остаток"
+        decimal available_grams "Доступно к заказу (total - reserved)"
+        decimal cost_per_gram "Себестоимость грамма"
+        boolean is_active "default: true"
+    }
+
+    MATERIAL_RESERVATIONS {
+        uuid id PK
+        integer inventory_id FK "Ссылка на конкретную катушку"
+        uuid order_id "ЛОГИЧЕСКАЯ ССЫЛКА на ORDERS"
+        decimal reserved_grams "Замороженный вес"
+        varchar status "reserved (заморожен), consumed (списан), cancelled (возвращен)"
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    PRINTER_PRESETS {
+        integer id PK
+        varchar model_name "e.g. Creality Ender 3 V2"
+        varchar orca_printer_id "Идентификатор для CLI Orca Slicer"
+    }
+
+    PROCESS_PRESETS {
+        integer id PK
+        varchar name "e.g. 0.20mm Standard"
+        varchar orca_process_id "Идентификатор для CLI Orca Slicer"
+    }
+
+    MATERIAL_PRESETS {
+        integer id PK
+        varchar name "Название материала для слайсера"
+        varchar orca_filament_id "Идентификатор для CLI Orca Slicer"
+        integer inventory_id FK "Связь с физической катушкой (Склад)"
+    }
+
+    PRINT_PROFILES {
+        integer id PK
+        varchar display_name "Пресет для юзера: PLA Стандарт (Ender 3)"
+        integer printer_id FK
+        integer material_id FK
+        integer process_id FK
+        decimal markup_percent "Коэффициент наценки (e.g. 1.2 = +20%)"
+        boolean is_enabled "default: true"
+    }
+    
+    USERS ||--o{ ORDERS : "Создает"
+    
+    INVENTORY ||--o{ MATERIAL_PRESETS : "Привязывается к пресету"
+    INVENTORY ||--o{ MATERIAL_RESERVATIONS : "Хранит резервы"
+
+    PRINTER_PRESETS ||--o{ PRINT_PROFILES : "Включает (Принтер)"
+    MATERIAL_PRESETS ||--o{ PRINT_PROFILES : "Включает (Материал)"
+    PROCESS_PRESETS ||--o{ PRINT_PROFILES : "Включает (Процесс)"
+
+    
+    PRINT_PROFILES ||..o{ ORDERS : "HTTP GET /api/profiles/{id}"
+    ORDERS ||..o| MATERIAL_RESERVATIONS : "HTTP POST /api/internal/inventory/reserve"
+
+```
 
 ## 🚀 Запуск проекта
 
@@ -127,3 +226,5 @@ docker-compose up -d
 
 # Посмотреть логи всех сервисов
 docker-compose logs -f
+```
+
