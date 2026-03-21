@@ -30,10 +30,6 @@
   <img src="https://img.shields.io/badge/License-BSD-yellow.svg" alt="License BSD"/>
   <img src="https://img.shields.io/badge/Version-1.0.0--beta_Final_v2-blue" alt="Version"/>
 </p>
-<p align="center">
-  <img src="https://github-readme-stats.vercel.app/api?username=ТВОЙ_НИК&show_icons=true&theme=radical" alt="Stats" />
-  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=ТВОЙ_НИК&layout=compact&theme=visionary" alt="Langs" />
-</p>
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
 <!-- markdownlint-disable -->
