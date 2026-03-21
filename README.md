@@ -12,7 +12,6 @@
 <!-- Блок хипстерства (Инструменты, которые делают вид, что код качественный) -->
 <p align="center">
   <img src="https://img.shields.io/badge/Linter-Ruff-D7FF64?style=flat&logo=python&logoColor=black" alt="Ruff"/>
-  <img src="https://img.shields.io/badge/Package-Poetry-60A5FA?style=flat&logo=poetry&logoColor=white" alt="Poetry"/>
   <img src="https://img.shields.io/badge/Pre--commit-Enabled-fab040?style=flat&logo=pre-commit&logoColor=white" alt="Pre-commit"/>
   <img src="https://img.shields.io/badge/Code_Style-Black-000000?style=flat" alt="Black"/>
 </p>
@@ -28,7 +27,7 @@
 
 <!-- Лицензия и Версия -->
 <p align="center">
-  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License MIT"/>
+  <img src="https://img.shields.io/badge/License-BSD-yellow.svg" alt="License BSD"/>
   <img src="https://img.shields.io/badge/Version-1.0.0--beta_Final_v2-blue" alt="Version"/>
 </p>
 <p align="center">
@@ -47,4 +46,88 @@
 <!-- prettier-ignore-end -->
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-Headless REST application for 3D model processing
+### Headless REST application for 3D model processing
+
+
+```mermaid
+graph TD
+    %% Стилизация компонентов
+    classDef gateway fill:#e2e8f0,stroke:#64748b,stroke-width:2px;
+    classDef service fill:#bae6fd,stroke:#0284c7,stroke-width:2px;
+    classDef worker fill:#fed7aa,stroke:#ea580c,stroke-width:2px;
+    classDef storage fill:#bbf7d0,stroke:#16a34a,stroke-width:2px;
+    classDef broker fill:#fbcfe8,stroke:#db2777,stroke-width:2px;
+    classDef external fill:#f3f4f6,stroke:#9ca3af,stroke-width:2px,stroke-dasharray: 5 5;
+
+    %% Пользователь и шлюз
+    User([Пользователь]) -->|"HTTP REST/JSON"| Gateway["NGINX API Gateway<br/><small>Маршрутизация, балансировка,<br/>client_max_body_size</small>"]:::gateway
+    
+    %% API Маршруты
+    Gateway -->|"GET/POST /api/orders"| OrderSvc["<b>1. Order Service</b><br/><small>Сервис заказов</small>"]:::service
+    Gateway -->|"GET/POST /api/inventory"| InvSvc["<b>3. Inventory & Pricing Service</b><br/><small>Склад и биллинг</small>"]:::service
+
+    %% Базы данных
+    OrderSvc -->|"TCP/IP: Чтение/Запись<br/>Заказы, Пресеты"| PgOrders[("PostgreSQL: Orders")]:::storage
+    InvSvc -->|"TCP/IP: Чтение/Запись<br/>Материалы, Остатки"| PgInv[("PostgreSQL: Inventory")]:::storage
+
+    %% Работа с файлами (MinIO)
+    OrderSvc -->|"S3 API: Сохраняет STL"| Minio[("MinIO / S3<br/><small>Файлы (STL / G-Code)</small>")]:::storage
+    
+    %% Очереди сообщений (RabbitMQ)
+    OrderSvc -->|"AMQP: Публикация задачи<br/>{order_id, file}"| RMQ[["RabbitMQ Broker"]]:::broker
+    Worker["<b>2. Slicing Worker</b><br/><small>Воркер нарезки</small>"]:::worker -->|"AMQP: Потребление задач<br/>Подписка на очередь"| RMQ
+
+    %% Воркер - Файлы и стороннее ПО
+    Worker -->|"S3 API: Скачивает STL<br/>Загружает G-code"| Minio
+    Worker -->|"CLI / Local Socket"| OrcaSlicer["Orca Slicer"]:::external
+
+    %% Межсервисное взаимодействие (Воркер -> Инвентарь)
+    Worker -->|"HTTP/REST (или gRPC)<br/>Запрос цены, списание пластика"| InvSvc
+
+    %% Жизненный цикл заказа (Справочно)
+    subgraph Lifecycle [Жизненный цикл заказа]
+        direction LR
+        L1(pending) --> L2(slicing) --> L3(priced) --> L4(confirmed)
+        L4 --> L5(printing) --> L6(completed)
+    end
+```
+## 🧩 Архитектура микросервисов
+
+Проект `restful-slice` (headless-платформа для 3D-печати) состоит из следующих ключевых компонентов:
+
+### 1. Order Service (Сервис заказов)
+* **Назначение**: Прием и управление жизненным циклом заказов на 3D-печать.
+* **Основные функции**:
+  * Загрузка пользовательских STL файлов (сохраняются в S3/MinIO).
+  * Создание сущности заказа и привязка к ней выбранного профиля печати (`presetId`).
+  * Публикация задач на "нарезку" (slicing) в брокер очередей (RabbitMQ).
+  * Выдача статуса готовности заказа клиенту через `/api/orders`.
+
+### 2. Slicer Worker (Воркер нарезки)
+* **Назначение**: Фоновый обработчик (consumer), выполняющий тяжелую математическую операцию конвертации 3D-модели в инструкции для принтера.
+* **Основные функции**:
+  * Чтение задач из очередей RabbitMQ.
+  * Скачивание STL-файлов из MinIO.
+  * Интеграция с движком **Orca Slicer** для генерации G-code.
+  * Подсчет затраченного пластика и времени, взаимодействие с `Inventory Service` для тарификации.
+  * Загрузка итогового G-code обратно в MinIO.
+
+### 3. Inventory & Pricing Service (Склад и биллинг)
+* **Назначение**: Управление логистикой материалов (филаментов) и ценообразованием.
+* **Основные функции**:
+  * Хранение базы пластика (цвета, типы, остатки кг).
+  * Калькуляция стоимости печати на основе веса сгенерированного G-code.
+  * Списание остатков со склада при подтверждении печати `/api/inventory`.
+
+---
+
+## 🚀 Запуск проекта
+
+### Вариант 1 (Рекомендуемый): Быстрый старт через Docker
+Весь проект вместе с базами данных (PostgreSQL), брокером сообщений (RabbitMQ) и S3 хранилищем поднимается с помощью Docker Compose.
+```bash
+# Поднять всю инфраструктуру в фоне
+docker-compose up -d
+
+# Посмотреть логи всех сервисов
+docker-compose logs -f
