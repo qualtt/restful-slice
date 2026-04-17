@@ -24,7 +24,7 @@ jobs:
         run: pip install bandit
 
       - name: Run Bandit on handwritten services
-        run: bandit -r services/order-service services/inventory-service services/slicer-worker -ll -ii
+        run: bandit -r services/order-service services/inventory-service services/slicer-adapter -ll -ii
 
   # Build + SCA: собираем Docker образы и сканируем их на уязвимости
   build_i_sca:
@@ -41,8 +41,8 @@ jobs:
       - name: Build Inventory Service image
         run: docker build -t inventory-service:test ./services/inventory-service
 
-      - name: Build Slicer Worker image
-        run: docker build -t slicer-worker:test ./services/slicer-worker
+      - name: Build Slicer Adapter image
+        run: docker build -t slicer-adapter:test ./services/slicer-adapter
 
       - name: Scan Order Service image with Trivy
         uses: aquasecurity/trivy-action@master
