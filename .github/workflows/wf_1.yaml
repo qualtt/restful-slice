@@ -71,37 +71,21 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL'
 
-  # Deploy step: пока просто план, чтобы понимать, как работает CD
+  # Deploy step: Разворачиваем сразу на домашнем сервере
   deploy:
     name: Deploy to Production
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build_i_sca
     if: github.ref == 'refs/heads/main2'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Show deployment plan
+      - name: Decrypt secrets
         run: |
-          echo "Deploy step runs only on main2 branch."
-          echo "On the production VM we will do the following:"
-          echo "  1) decrypt secrets with SOPS using GitHub Secret key"
-          echo "  2) pull the latest repo state"
-          echo "  3) run docker compose up -d --build"
-          echo "Example commands:"
-          echo "  sops --decrypt --input-type dotenv --output-type dotenv infra/sops/secrets.enc.env > .env"
-          echo "  docker compose pull"
-          echo "  docker compose up -d --build"
+          # SOPS автоматом подхватит ключ из переменной окружения на сервере
+          sops --decrypt --input-type dotenv --output-type dotenv infra/sops/secrets.enc.env > .env
 
-      # - name: Deploy to remote host
-      #   uses: appleboy/ssh-action@v0.1.6
-      #   with:
-      #     host: ${{ secrets.REMOTE_HOST }}
-      #     username: ${{ secrets.REMOTE_USER }}
-      #     key: ${{ secrets.DEPLOY_SSH_KEY }}
-      #     script: |
-      #       cd /path/to/project
-      #       git pull origin main
-      #       sops --decrypt --input-type dotenv --output-type dotenv infra/sops/secrets.enc.env > .env
-      #       docker compose pull
-      #       docker compose up -d --build
+      - name: Start Docker Compose
+        run: |
+          docker compose up -d --build
