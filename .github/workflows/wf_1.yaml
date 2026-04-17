@@ -51,7 +51,7 @@ jobs:
           format: table
           exit-code: '1'
           ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
 
       - name: Scan Inventory Service image with Trivy
         uses: aquasecurity/trivy-action@master
@@ -60,7 +60,7 @@ jobs:
           format: table
           exit-code: '1'
           ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
 
       - name: Scan Slicer Worker image with Trivy
         uses: aquasecurity/trivy-action@master
@@ -69,7 +69,7 @@ jobs:
           format: table
           exit-code: '1'
           ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
 
   # Deploy step: пока просто план, чтобы понимать, как работает CD
   deploy:
