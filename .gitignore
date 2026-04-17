@@ -19,3 +19,7 @@ __pycache__/
 .env
 e up -d --build
 e.yml
+
+# Секретница реализована
+infra/sops/keys.txt
+.env
