@@ -1,4 +1,21 @@
-.env
+# Python
 venv/
+env/
+__pycache__/
+*.pyc
+
+# Linter
 .ruff_cache/
 .DS_store
+.pytest_cache/
+
+# IDE & редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+.env
+e up -d --build
+e.yml

@@ -1,0 +1,37 @@
+# --- Git ---
+.git
+.gitignore
+
+# --- Секреты и пароли (САМОЕ ВАЖНОЕ) ---
+.env
+*.env
+*.enc.env
+keys.txt
+secrets/
+
+# --- Локальные виртуальные окружения ---
+# (Если скопируешь виндовый/маковский venv в линуксовый докер — всё сломается!)
+venv/
+.venv/
+env/
+.env_python/
+
+# --- Кэш Питона (Мусор) ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# --- IDE и редакторы ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Логи и тесты ---
+*.log
+logs/
+.pytest_cache/
+htmlcov/
+.coverage
