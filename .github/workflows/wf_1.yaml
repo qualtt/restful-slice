@@ -89,3 +89,5 @@ jobs:
       - name: Start Docker Compose
         run: |
           docker compose up -d --build
+
+# а вдруг заработает...
