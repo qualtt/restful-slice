@@ -2,9 +2,9 @@ name: CI/CD pipeline
 
 on:
   push:
-    branches: [main2]
+    branches: [main2, main2-test]
   pull_request:
-    branches: [main2]
+    branches: [main2, main2-test]
 
 jobs:
   # SAST на весь handwritten код проекта
