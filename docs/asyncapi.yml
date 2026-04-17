@@ -119,19 +119,31 @@ components:
     SliceRequestedPayload:
       type: object
       additionalProperties: false
-      required: [order_id, customer_id, stl_object_key, preset_id, material_type]
+      required: [order_id, customer_id, minio_paths]
       properties:
         order_id: { type: string, format: uuid }
         customer_id: { type: string, format: uuid }
-        stl_object_key:
-          type: string
-          example: stl/orders/3f8a6aef/model.stl
-        preset_id: { type: string, format: uuid }
-        material_type: { type: string, example: PLA }
         priority:
           type: string
           default: normal
           enum: [low, normal, high]
+        minio_paths:
+          type: object
+          additionalProperties: false
+          required: [stl_file, printer_profile, process_profile, filament_profile]
+          properties:
+            stl_file: 
+              type: string
+              example: "stl/orders/3f8a6aef/model.stl"
+            printer_profile: 
+              type: string
+              example: "profiles/printers/prusa_mk3s.json"
+            process_profile: 
+              type: string
+              example: "profiles/process/0_20mm_quality.json"
+            filament_profile: 
+              type: string
+              example: "profiles/filaments/generic_pla.json"
 
     SliceCompletedPayload:
       type: object
