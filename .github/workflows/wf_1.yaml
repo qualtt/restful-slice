@@ -62,10 +62,10 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL'
 
-      - name: Scan Slicer Worker image with Trivy
+      - name: Scan Slicer Adapter image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: slicer-worker:test
+          image-ref: slicer-adapter:test
           format: table
           exit-code: '1'
           ignore-unfixed: true
