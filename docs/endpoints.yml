@@ -7,10 +7,10 @@ info:
     REST API для платформы 3D-печати.
     Включает два сервиса:
     - **Order Service** (`/api/orders`) — приём заказов, загрузка STL, отслеживание статуса.
-    - **Inventory & Pricing Service** (`/api/inventory`) — пресеты, материалы, остатки.
+    - **Inventory & Pricing Service** (`/api/inventory`) — профили печати, материалы, остатки.
 
     ### Жизненный цикл заказа
-    ```
+    ```text
     pending → slicing → priced → confirmed → printing → completed
                                            ↘ cancelled
                              ↘ failed
@@ -18,7 +18,7 @@ info:
 
     ### Двухшаговое создание заказа
     1. `POST /api/orders/files` — загрузить STL, получить `fileId`
-    2. `POST /api/orders` — создать заказ, передав `fileId` + `presetId`
+    2. `POST /api/orders` — создать заказ, передав `fileId` + `profileId`
 
 servers:
   - url: https://restfulslice.ru
@@ -139,7 +139,7 @@ components:
 
     Order:
       type: object
-      required: [orderId, status, fileId, presetId, createdAt, updatedAt]
+      required: [orderId, status, fileId, profileId, createdAt, updatedAt]
       properties:
         orderId:
           type: string
@@ -150,16 +150,14 @@ components:
         fileId:
           type: string
           format: uuid
-          description: Ссылка на загруженный STL
-        presetId:
-          type: string
-          format: uuid
-          description: Ссылка на выбранный пресет
+          description: Ссылка на загруженный STL (путь хранится в MinIO)
+        profileId:
+          type: integer
+          description: Ссылка на профиль печати из Inventory Service (print_profiles.id)
         slicingResult:
           $ref: '#/components/schemas/SlicingResult'
         errorMessage:
           type: string
-          nullable: true
           description: Причина ошибки (если status = failed)
         createdAt:
           type: string
@@ -170,80 +168,107 @@ components:
 
     CreateOrderRequest:
       type: object
-      required: [fileId, presetId]
+      required: [fileId, profileId]
       properties:
         fileId:
           type: string
           format: uuid
           description: ID файла, полученный после загрузки STL
-        presetId:
-          type: string
-          format: uuid
-          description: ID пресета из Inventory Service
+        profileId:
+          type: integer
+          description: ID профиля печати из Inventory Service (print_profiles.id)
 
+    # Физический склад катушек (inventory)
     Material:
       type: object
-      required: [materialId, name, type, stockGrams, pricePerGram]
+      required: [materialId, label, materialType, remainingGrams, costPerGram, isActive]
       properties:
         materialId:
-          type: string
-          format: uuid
-          example: d290f1ee-6c54-4b01-90e6-d701748f0851
-        name:
-          type: string
-          example: PLA White
-        type:
-          type: string
-          enum: [PLA, ABS, PETG, TPU, ASA, OTHER]
-          example: PLA
-        stockGrams:
-          type: number
-          format: float
-          description: Текущий остаток на складе, г
-          example: 2500.0
-        pricePerGram:
-          $ref: '#/components/schemas/Money'
-        description:
-          type: string
-          nullable: true
-
-    Preset:
-      type: object
-      required: [presetId, name, materialId, layerHeightMm, infillPercent, isActive]
-      properties:
-        presetId:
-          type: string
-          format: uuid
-          example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
-        name:
-          type: string
-          example: "PLA / 0.2mm / 20% infill"
-        materialId:
-          type: string
-          format: uuid
-          description: ID материала из этого же сервиса
-        layerHeightMm:
-          type: number
-          format: float
-          description: Высота слоя, мм
-          example: 0.2
-        infillPercent:
           type: integer
-          minimum: 0
-          maximum: 100
-          description: Заполнение, %
-          example: 20
-        supportEnabled:
-          type: boolean
-          description: Включены ли поддержки
-          example: false
+          example: 1
+        label:
+          type: string
+          description: Название катушки
+          example: Esun PLA White 1kg
+        materialType:
+          type: string
+          enum: [PLA, ABS, PETG, TPU]
+          example: PLA
+        remainingGrams:
+          type: number
+          format: float
+          description: Текущий остаток на катушке, г
+          example: 2500.0
+        costPerGram:
+          $ref: '#/components/schemas/Money'
         isActive:
           type: boolean
-          description: Доступен ли пресет для новых заказов
+          description: Доступна ли катушка для новых заказов
           example: true
         description:
           type: string
-          nullable: true
+
+    # Справочник принтеров (printer_presets)
+    PrinterPreset:
+      type: object
+      required: [printerId, modelName, orcaPrinterId]
+      properties:
+        printerId:
+          type: integer
+          example: 1
+        modelName:
+          type: string
+          example: Creality Ender 3 V2
+        orcaPrinterId:
+          type: string
+          description: Идентификатор для CLI Orca Slicer
+          example: creality_ender3v2
+
+    # Справочник процессов (process_presets)
+    ProcessPreset:
+      type: object
+      required: [processId, name, orcaProcessId]
+      properties:
+        processId:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "0.20mm Standard"
+        orcaProcessId:
+          type: string
+          description: Идентификатор для CLI Orca Slicer
+          example: fdm_process_0.20mm_standard
+
+    # Профиль печати — бандл для пользователя (print_profiles)
+    PrintProfile:
+      type: object
+      required: [profileId, displayName, printer, material, process, markupPercent, isEnabled]
+      properties:
+        profileId:
+          type: integer
+          example: 3
+        displayName:
+          type: string
+          description: Понятное имя профиля
+          example: "PLA Стандарт (Ender 3)"
+        printer:
+          $ref: '#/components/schemas/PrinterPreset'
+        material:
+          $ref: '#/components/schemas/Material'
+        process:
+          $ref: '#/components/schemas/ProcessPreset'
+        markupPercent:
+          type: number
+          format: float
+          description: Наценка сервиса, например 1.2 = +20%
+          example: 1.2
+        isEnabled:
+          type: boolean
+          description: Доступен ли профиль для новых заказов
+          example: true
+        description:
+          type: string
 
   parameters:
     OrderIdPath:
@@ -255,21 +280,19 @@ components:
         format: uuid
       example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
 
-    PresetIdPath:
-      name: presetId
+    ProfileIdPath:
+      name: profileId
       in: path
       required: true
       schema:
-        type: string
-        format: uuid
+        type: integer
 
     MaterialIdPath:
       name: materialId
       in: path
       required: true
       schema:
-        type: string
-        format: uuid
+        type: integer
 
     PageQuery:
       name: page
@@ -333,7 +356,7 @@ tags:
       Маршрутизируется Nginx на /api/orders -> order-service:8080.
   - name: Inventory
     description: |
-      **Inventory & Pricing Service** — пресеты, материалы, остатки.
+      **Inventory & Pricing Service** — профили печати, материалы, остатки.
       Маршрутизируется Nginx на /api/inventory -> inventory-service:8081.
 
 paths:
@@ -343,8 +366,9 @@ paths:
       summary: Загрузить STL-файл
       description: |
         Шаг 1 из 2 при создании заказа.
-        Загружает STL-файл в объектное хранилище (MinIO) и возвращает `fileId`,
+        Загружает STL-файл в MinIO и возвращает `fileId`,
         который используется при создании заказа.
+        Путь к файлу сохраняется в `orders.stl_binary_path`.
 
         **Ограничения (проверяются Nginx):**
         - Максимальный размер: 100 МБ
@@ -372,6 +396,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UploadedFile'
+              example:
+                fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                filename: bracket_v3.stl
+                sizeBytes: 5242880
+                uploadedAt: "2025-06-15T09:58:00Z"
         '400':
           description: Некорректный запрос (нет файла, неверный тип)
           content:
@@ -400,9 +429,9 @@ paths:
       tags: [Orders]
       summary: Создать заказ
       description: |
-        Шаг 2 из 2. Создаёт заказ на основе ранее загруженного файла и выбранного пресета.
+        Шаг 2 из 2. Создаёт заказ на основе ранее загруженного файла и выбранного профиля печати.
 
-        Order Service сохраняет заказ в БД со статусом `pending`
+        Order Service сохраняет заказ в `orders` со статусом `pending`
         и публикует задачу в RabbitMQ для Slicing Worker.
         Ответ возвращается **немедленно**, не дожидаясь нарезки.
       operationId: createOrder
@@ -414,7 +443,7 @@ paths:
               $ref: '#/components/schemas/CreateOrderRequest'
             example:
               fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
-              presetId: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+              profileId: 3
       responses:
         '202':
           description: Заказ принят в обработку (нарезка ещё не завершена)
@@ -426,7 +455,7 @@ paths:
                 orderId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                 status: pending
                 fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
-                presetId: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                profileId: 3
                 slicingResult: null
                 errorMessage: null
                 createdAt: "2025-06-15T10:00:00Z"
@@ -436,14 +465,22 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          description: Файл или пресет не найден
+          description: Файл или профиль не найден
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                code: FILE_NOT_FOUND
-                message: STL file with given fileId does not exist
+              examples:
+                fileNotFound:
+                  summary: Файл не найден
+                  value:
+                    code: FILE_NOT_FOUND
+                    message: STL file with given fileId does not exist
+                profileNotFound:
+                  summary: Профиль не найден
+                  value:
+                    code: PROFILE_NOT_FOUND
+                    message: Print profile with given profileId does not exist
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -475,6 +512,33 @@ paths:
                       $ref: '#/components/schemas/Order'
                   meta:
                     $ref: '#/components/schemas/PaginationMeta'
+              example:
+                data:
+                  - orderId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                    status: priced
+                    fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                    profileId: 3
+                    slicingResult:
+                      weightGrams: 47.3
+                      printTimeSeconds: 7320
+                      price:
+                        amount: "349.50"
+                        currency: RUB
+                    errorMessage: null
+                    createdAt: "2025-06-15T10:00:00Z"
+                    updatedAt: "2025-06-15T10:02:10Z"
+                  - orderId: b2c3d4e5-f6a7-8901-bcde-f12345678901
+                    status: pending
+                    fileId: 4gb96g75-6828-5673-c4gd-3d074g77bgb7
+                    profileId: 1
+                    slicingResult: null
+                    errorMessage: null
+                    createdAt: "2025-06-15T11:00:00Z"
+                    updatedAt: "2025-06-15T11:00:00Z"
+                meta:
+                  total: 2
+                  page: 1
+                  pageSize: 20
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -488,7 +552,8 @@ paths:
         Возвращает детали заказа и текущий статус.
 
         После завершения нарезки (статус `priced`) поле `slicingResult` содержит
-        расчётный вес изделия, время печати и итоговую цену заказа.
+        расчётный вес изделия (`weight_grams`), время печати (`duration_minutes` → секунды)
+        и итоговую цену (`total_price` с учётом `markup_percent` профиля).
 
         Клиент должен периодически опрашивать этот эндпоинт (polling),
         пока статус не перейдёт в `priced`, `failed` или `cancelled`.
@@ -509,7 +574,7 @@ paths:
                     orderId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                     status: pending
                     fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
-                    presetId: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                    profileId: 3
                     slicingResult: null
                     errorMessage: null
                     createdAt: "2025-06-15T10:00:00Z"
@@ -520,7 +585,7 @@ paths:
                     orderId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                     status: priced
                     fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
-                    presetId: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                    profileId: 3
                     slicingResult:
                       weightGrams: 47.3
                       printTimeSeconds: 7320
@@ -536,7 +601,7 @@ paths:
                     orderId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
                     status: failed
                     fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
-                    presetId: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+                    profileId: 3
                     slicingResult: null
                     errorMessage: "Slicer process exited with code 1: non-manifold geometry detected"
                     createdAt: "2025-06-15T10:00:00Z"
@@ -565,6 +630,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Order'
+              example:
+                orderId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                status: cancelled
+                fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                profileId: 3
+                slicingResult: null
+                errorMessage: null
+                createdAt: "2025-06-15T10:00:00Z"
+                updatedAt: "2025-06-15T10:05:00Z"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -581,12 +655,14 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/inventory/presets:
+  /api/inventory/profiles:
     get:
       tags: [Inventory]
-      summary: Список пресетов
-      description: Возвращает все активные пресеты (настройки печати), доступные для заказа.
-      operationId: listPresets
+      summary: Список профилей печати
+      description: |
+        Возвращает все активные профили печати (`print_profiles`), доступные для заказа.
+        Каждый профиль является бандлом принтера, материала и процесса с наценкой.
+      operationId: listProfiles
       parameters:
         - $ref: '#/components/parameters/PageQuery'
         - $ref: '#/components/parameters/PageSizeQuery'
@@ -595,16 +671,16 @@ paths:
           description: Фильтр по типу материала
           schema:
             type: string
-            enum: [PLA, ABS, PETG, TPU, ASA, OTHER]
-        - name: isActive
+            enum: [PLA, ABS, PETG, TPU]
+        - name: isEnabled
           in: query
-          description: Показывать только активные пресеты (по умолчанию true)
+          description: Показывать только активные профили (по умолчанию true)
           schema:
             type: boolean
             default: true
       responses:
         '200':
-          description: Список пресетов
+          description: Список профилей печати
           content:
             application/json:
               schema:
@@ -614,38 +690,80 @@ paths:
                   data:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Preset'
+                      $ref: '#/components/schemas/PrintProfile'
                   meta:
                     $ref: '#/components/schemas/PaginationMeta'
+              example:
+                data:
+                  - profileId: 3
+                    displayName: "PLA Стандарт (Ender 3)"
+                    printer:
+                      printerId: 1
+                      modelName: "Creality Ender 3 V2"
+                      orcaPrinterId: "creality_ender3v2"
+                    material:
+                      materialId: 1
+                      label: "Esun PLA White 1kg"
+                      materialType: PLA
+                      remainingGrams: 2500.0
+                      costPerGram:
+                        amount: "0.15"
+                        currency: RUB
+                      isActive: true
+                    process:
+                      processId: 1
+                      name: "0.20mm Standard"
+                      orcaProcessId: "fdm_process_0.20mm_standard"
+                    markupPercent: 1.2
+                    isEnabled: true
+                    description: "Стандартный профиль для прототипов"
+                meta:
+                  total: 1
+                  page: 1
+                  pageSize: 20
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/inventory/presets/{presetId}:
+  /api/inventory/profiles/{profileId}:
     get:
       tags: [Inventory]
-      summary: Получить пресет
-      description: Возвращает детали конкретного пресета, включая связанный материал.
-      operationId: getPreset
+      summary: Получить профиль печати
+      description: Возвращает детали конкретного профиля со вложенными принтером, материалом и процессом.
+      operationId: getProfile
       parameters:
-        - $ref: '#/components/parameters/PresetIdPath'
+        - $ref: '#/components/parameters/ProfileIdPath'
       responses:
         '200':
-          description: Детали пресета
+          description: Детали профиля печати
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Preset'
+                $ref: '#/components/schemas/PrintProfile'
               example:
-                presetId: 7c9e6679-7425-40de-944b-e07fc1f90ae7
-                name: "PLA / 0.2mm / 20% infill"
-                materialId: d290f1ee-6c54-4b01-90e6-d701748f0851
-                layerHeightMm: 0.2
-                infillPercent: 20
-                supportEnabled: false
-                isActive: true
-                description: "Standard preset for prototypes"
+                profileId: 3
+                displayName: "PLA Стандарт (Ender 3)"
+                printer:
+                  printerId: 1
+                  modelName: "Creality Ender 3 V2"
+                  orcaPrinterId: "creality_ender3v2"
+                material:
+                  materialId: 1
+                  label: "Esun PLA White 1kg"
+                  materialType: PLA
+                  remainingGrams: 2500.0
+                  costPerGram:
+                    amount: "0.15"
+                    currency: RUB
+                  isActive: true
+                process:
+                  processId: 1
+                  name: "0.20mm Standard"
+                  orcaProcessId: "fdm_process_0.20mm_standard"
+                markupPercent: 1.2
+                isEnabled: true
+                description: "Стандартный профиль для прототипов"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -656,8 +774,8 @@ paths:
   /api/inventory/materials:
     get:
       tags: [Inventory]
-      summary: Список материалов
-      description: Возвращает все материалы со складскими остатками.
+      summary: Список материалов (склад)
+      description: Возвращает все катушки из таблицы `inventory` с текущими остатками.
       operationId: listMaterials
       parameters:
         - $ref: '#/components/parameters/PageQuery'
@@ -667,7 +785,13 @@ paths:
           description: Фильтр по типу материала
           schema:
             type: string
-            enum: [PLA, ABS, PETG, TPU, ASA, OTHER]
+            enum: [PLA, ABS, PETG, TPU]
+        - name: isActive
+          in: query
+          description: Показывать только активные катушки (по умолчанию true)
+          schema:
+            type: boolean
+            default: true
       responses:
         '200':
           description: Список материалов
@@ -683,6 +807,28 @@ paths:
                       $ref: '#/components/schemas/Material'
                   meta:
                     $ref: '#/components/schemas/PaginationMeta'
+              example:
+                data:
+                  - materialId: 1
+                    label: "Esun PLA White 1kg"
+                    materialType: PLA
+                    remainingGrams: 2500.0
+                    costPerGram:
+                      amount: "0.15"
+                      currency: RUB
+                    isActive: true
+                  - materialId: 2
+                    label: "Bambu ABS Black 1kg"
+                    materialType: ABS
+                    remainingGrams: 850.0
+                    costPerGram:
+                      amount: "0.22"
+                      currency: RUB
+                    isActive: true
+                meta:
+                  total: 2
+                  page: 1
+                  pageSize: 20
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -692,7 +838,7 @@ paths:
     get:
       tags: [Inventory]
       summary: Получить материал
-      description: Возвращает детали конкретного материала, включая текущий остаток.
+      description: Возвращает детали катушки из `inventory`, включая текущий остаток.
       operationId: getMaterial
       parameters:
         - $ref: '#/components/parameters/MaterialIdPath'
@@ -704,17 +850,124 @@ paths:
               schema:
                 $ref: '#/components/schemas/Material'
               example:
-                materialId: d290f1ee-6c54-4b01-90e6-d701748f0851
-                name: PLA White
-                type: PLA
-                stockGrams: 2500.0
-                pricePerGram:
+                materialId: 1
+                label: "Esun PLA White 1kg"
+                materialType: PLA
+                remainingGrams: 2500.0
+                costPerGram:
                   amount: "0.15"
                   currency: RUB
-                description: "Standard PLA, white"
+                isActive: true
+                description: "Стандартный PLA, белый"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
+  /api/internal/inventory/reserve:
+    post:
+      tags: [Internal]
+      summary: Зарезервировать пластик и рассчитать цену
+      description: |
+        Внутренний эндпоинт. Вызывается Order Service'ом после завершения нарезки воркером.
+        Inventory Service находит профиль, вычисляет нужную катушку, проверяет `available_grams`.
+        Если пластика хватает — создает запись в `material_reservations` со статусом `reserved` 
+        и возвращает рассчитанную стоимость с учетом `markup_percent`.
+      operationId: reserveMaterialAndCalculatePrice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, profileId, weightGrams]
+              properties:
+                orderId:
+                  type: string
+                  format: uuid
+                  description: ID заказа для привязки резерва
+                profileId:
+                  type: integer
+                  description: ID профиля печати
+                weightGrams:
+                  type: number
+                  format: float
+                  description: Вес, рассчитанный слайсером
+              example:
+                orderId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                profileId: 3
+                weightGrams: 47.3
+      responses:
+        '200':
+          description: Пластик успешно зарезервирован, цена рассчитана
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reservationId:
+                    type: string
+                    format: uuid
+                  price:
+                    $ref: '#/components/schemas/Money'
+              example:
+                reservationId: "f9e8d7c6-b5a4-3210-9876-543210fedcba"
+                price:
+                  amount: "349.50"
+                  currency: RUB
+        '404':
+          description: Профиль или активный материал не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: PROFILE_NOT_FOUND
+                message: Print profile 3 does not exist or is disabled
+        '409':
+          description: Недостаточно материала на складе
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: INSUFFICIENT_MATERIAL
+                message: "Only 20.0g available, but 47.3g requested"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/internal/inventory/reservations/{orderId}/status:
+    patch:
+      tags: [Internal]
+      summary: Изменить статус резерва (Подтвердить списание или отменить)
+      description: |
+        Вызывается Order Service'ом, когда заказ переходит в статус `completed` (успешная печать)
+        или `cancelled` (отмена).
+        - status = `consumed`: Резерв окончательно списывается с физического остатка `total_grams`.
+        - status = `cancelled`: Резерв удаляется, пластик возвращается в `available_grams`.
+      operationId: updateReservationStatus
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [consumed, cancelled]
+      responses:
+        '200':
+          description: Статус резерва успешно обновлен
+        '404':
+          description: Резерв для данного orderId не найден
