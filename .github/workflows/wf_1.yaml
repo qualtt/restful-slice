@@ -1,0 +1,106 @@
+name: CI/CD pipeline
+
+on:
+  push:
+    branches: [main2]
+  pull_request:
+    branches: [main2]
+
+jobs:
+  # SAST на весь handwritten код проекта
+  security_sast:
+    name: SAST
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Run Bandit on handwritten services
+        run: bandit -r services/order-service services/inventory-service services/slicer-worker -ll -ii
+
+  # Build + SCA: собираем Docker образы и сканируем их на уязвимости
+  build_i_sca:
+    name: Build and SCA
+    runs-on: ubuntu-latest
+    needs: security_sast
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Order Service image
+        run: docker build -t order-service:test ./services/order-service
+
+      - name: Build Inventory Service image
+        run: docker build -t inventory-service:test ./services/inventory-service
+
+      - name: Build Slicer Worker image
+        run: docker build -t slicer-worker:test ./services/slicer-worker
+
+      - name: Scan Order Service image with Trivy
+        uses: aquasecurity/trivy-action@v1
+        with:
+          image-ref: order-service:test
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      - name: Scan Inventory Service image with Trivy
+        uses: aquasecurity/trivy-action@v1
+        with:
+          image-ref: inventory-service:test
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      - name: Scan Slicer Worker image with Trivy
+        uses: aquasecurity/trivy-action@v1
+        with:
+          image-ref: slicer-worker:test
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+  # Deploy step: пока просто план, чтобы понимать, как работает CD
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build_i_sca
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show deployment plan
+        run: |
+          echo "Deploy step runs only on main branch."
+          echo "On the production VM we will do the following:"
+          echo "  1) decrypt secrets with SOPS using GitHub Secret key"
+          echo "  2) pull the latest repo state"
+          echo "  3) run docker compose up -d --build"
+          echo "Example commands:"
+          echo "  sops --decrypt --input-type dotenv --output-type dotenv infra/sops/secrets.enc.env > .env"
+          echo "  docker compose pull"
+          echo "  docker compose up -d --build"
+            - name: Deploy to remote host
+        # uses: appleboy/ssh-action@v0.1.6
+        # with:
+        #   host: ${{ secrets.REMOTE_HOST }}
+        #   username: ${{ secrets.REMOTE_USER }}
+        #   key: ${{ secrets.DEPLOY_SSH_KEY }}
+        #   script: |
+        #     cd /path/to/project
+        #     git pull origin main
+        #     sops --decrypt --input-type dotenv --output-type dotenv infra/sops/secrets.enc.env > .env
+        #     docker compose pull
+        #     docker compose up -d --build
