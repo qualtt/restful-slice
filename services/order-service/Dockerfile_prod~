@@ -1,0 +1,40 @@
+# --- СТАДИЯ СБОРКИ (Builder) ---
+FROM python:3.11-slim-bookworm AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+COPY requirements.txt .
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# --- СТАДИЯ ПРОДАКШЕНА (Production) ---
+FROM python:3.11-slim-bookworm
+
+ENV PYTHONUNBUFFERED=1
+ENV PATH="/opt/venv/bin:$PATH"
+
+# DevSecOps: Пользователь без прав root
+RUN groupadd -g 10001 appuser && \
+    useradd -u 10000 -g appuser appuser
+
+WORKDIR /app
+
+# Копируем только библиотеки
+COPY --from=builder /opt/venv /opt/venv
+
+# Копируем код
+COPY . .
+
+RUN chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8080
+
+# Запуск БЕЗ режима --reload (он жрет ресурсы в проде!)
+# Используем переменную PORT (по умолчанию 8080), чтобы было гибко
+CMD["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
