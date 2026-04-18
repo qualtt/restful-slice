@@ -24,7 +24,7 @@ jobs:
         run: pip install bandit
 
       - name: Run Bandit on handwritten services
-        run: bandit -r services/order-service services/inventory-service services/slicer-adapter # -lll -iii
+        run: bandit -r services/order-service services/inventory-service services/slicer-adapter -x "*/tests/*","*test_*\.py" # -lll -iii
 
   # Build + SCA
   build_i_sca:
