@@ -134,11 +134,11 @@ services:
       - slicer_internal_net
     volumes:
       - slicer_data:/app/data
-#    depends_on:
-#      rabbitmq:
-#        condition: service_healthy
-#      minio:
-#        condition: service_healthy
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
 
   slicer_adapter:
     build:
