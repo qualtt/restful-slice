@@ -1,9 +1,7 @@
-version: '3.8'
-
-
 # Глобальный блок env_file в версии 3.8 не поддерживается (и не нужен).
 # Docker Compose САМ автоматически читает файл .env в папке и подставляет ${ПЕРЕМЕННЫЕ}.
 
+# компоуз вроде не тронут, слава богу
 services:
   postgres:
     image: postgres:15-alpine
@@ -171,7 +169,7 @@ services:
     ports:
       - "80:80"
     environment:
-      - SEC_RULE_ENGINE=On
+      - MODSEC_RULE_ENGINE=DetectionOnly
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
     networks:

@@ -109,7 +109,9 @@ def test_process_slicing_task_orca_failure_publishes_failed(
         "profiles/filaments/generic_pla.json": "/tmp/f.json",
     }
 
-    mock_orca_cls.return_value.slice_model.side_effect = RuntimeError("Orca slice failed (500)")
+    mock_orca_cls.return_value.slice_model.side_effect = RuntimeError(
+        "Orca slice failed (500)"
+    )
 
     process_slicing_task(slice_requested_event_json)
 

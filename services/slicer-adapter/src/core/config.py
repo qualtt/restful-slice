@@ -15,7 +15,9 @@ class Settings(BaseSettings):
 
     rabbitmq_url: Optional[str] = Field(default=None, validation_alias="RABBITMQ_URL")
     rabbitmq_user: str = Field(default="guest", validation_alias="RABBITMQ_USER")
-    rabbitmq_password: str = Field(default="guest", validation_alias="RABBITMQ_PASSWORD")
+    rabbitmq_password: str = Field(
+        default="guest", validation_alias="RABBITMQ_PASSWORD"
+    )
     rabbitmq_host: str = Field(default="rabbitmq", validation_alias="RABBITMQ_HOST")
     rabbitmq_port: int = Field(default=5672, validation_alias="RABBITMQ_PORT")
 
@@ -36,7 +38,9 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ORCA_API_URL", "SLICER_API_URL"),
     )
 
-    event_spec_version: str = Field(default="1.0.0", validation_alias="EVENT_SPEC_VERSION")
+    event_spec_version: str = Field(
+        default="1.0.0", validation_alias="EVENT_SPEC_VERSION"
+    )
     service_name: str = Field(default="slicer-adapter", validation_alias="SERVICE_NAME")
 
     @computed_field  # type: ignore[prop-decorator]

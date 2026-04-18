@@ -79,7 +79,9 @@ def publish_event(queue_name: str, event: BaseModel) -> None:
             try:
                 connection.close()
             except Exception:
-                logger.debug("Failed to close RabbitMQ connection after publish", exc_info=True)
+                logger.debug(
+                    "Failed to close RabbitMQ connection after publish", exc_info=True
+                )
 
 
 def publish_event_with_retries(
@@ -125,8 +127,10 @@ def start_consuming(queue_name: str, callback: Callable[[str], None]) -> None:
         _properties: pika.spec.BasicProperties,
         body: bytes,
     ) -> None:
-        handle_consumer_message(ch, method, body, callback)
+        handle_consumer_message(ch, method, body, callback) 
 
-    channel.basic_consume(queue=queue_name, on_message_callback=_on_message, auto_ack=False)
+    channel.basic_consume(
+        queue=queue_name, on_message_callback=_on_message, auto_ack=False
+    )
     logger.info("Consuming queue %s", queue_name)
     channel.start_consuming()
