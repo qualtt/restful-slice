@@ -155,7 +155,7 @@ services:
       slicer_api:
         condition: service_started
       rabbitmq:
-          condition: service_healthy
+        condition: service_healthy
       minio:
         condition: service_healthy
 
@@ -172,8 +172,10 @@ services:
     networks:
       - public_net
     depends_on:
-      - order_service
-      - inventory_service
+      order_service:
+        condition: service_healthy
+      inventory_service:
+        condition: service_healthy
 
 # ЯВНО ОБЪЯВЛЯЕМ СЕТИ И ТОМА!
 networks:
