@@ -24,9 +24,9 @@ jobs:
         run: pip install bandit
 
       - name: Run Bandit on handwritten services
-        run: bandit -r services/order-service services/inventory-service services/slicer-adapter -ll -ii
+        run: bandit -r services/order-service services/inventory-service services/slicer-adapter -lll -iii
 
-  # Build + SCA: собираем Docker образы и сканируем их на уязвимости
+  # Build + SCA
   build_i_sca:
     name: Build and SCA
     runs-on: ubuntu-latest
@@ -71,7 +71,7 @@ jobs:
           ignore-unfixed: true
           severity: 'CRITICAL'
 
-  # Deploy step: Разворачиваем сразу на домашнем сервере
+  # Deploy step: на домашнем сервере
   deploy:
     name: Deploy to Production
     runs-on: self-hosted
