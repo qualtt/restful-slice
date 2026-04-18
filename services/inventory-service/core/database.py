@@ -90,7 +90,9 @@ class PostgresDB:
         with self._connect() as conn:
             with conn.cursor() as cur:
                 if table == "inventory":
-                    cur.execute("SELECT material_id, total_grams FROM inventory ORDER BY material_id")
+                    cur.execute(
+                        "SELECT material_id, total_grams FROM inventory ORDER BY material_id"
+                    )
                     return [
                         {
                             "material_id": row["material_id"],
@@ -100,7 +102,9 @@ class PostgresDB:
                     ]
 
                 if table == "reservations":
-                    cur.execute("SELECT order_id, reservation_id, material_id, amount FROM reservations")
+                    cur.execute(
+                        "SELECT order_id, reservation_id, material_id, amount FROM reservations"
+                    )
                     return [
                         {
                             "order_id": row["order_id"],
@@ -151,10 +155,15 @@ class PostgresDB:
         with self._connect() as conn:
             with conn.cursor() as cur:
                 if table == "reservations":
-                    cur.execute("DELETE FROM reservations WHERE order_id = %s", (record_id,))
+                    cur.execute(
+                        "DELETE FROM reservations WHERE order_id = %s", (record_id,)
+                    )
                     return
                 if table == "inventory":
-                    cur.execute("DELETE FROM inventory WHERE material_id = %s", (int(record_id),))
+                    cur.execute(
+                        "DELETE FROM inventory WHERE material_id = %s",
+                        (int(record_id),),
+                    )
                     return
                 raise ValueError(f"Unsupported table: {table}")
 

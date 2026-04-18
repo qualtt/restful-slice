@@ -32,7 +32,9 @@ def publish_event(queue_name: str, event: BaseModel) -> None:
             try:
                 connection.close()
             except Exception:
-                logger.debug("Failed to close RabbitMQ connection after publish", exc_info=True)
+                logger.debug(
+                    "Failed to close RabbitMQ connection after publish", exc_info=True
+                )
 
 
 def start_consuming(queue_name: str, callback: Callable[[str], None]) -> None:
@@ -52,11 +54,15 @@ def start_consuming(queue_name: str, callback: Callable[[str], None]) -> None:
         try:
             callback(body.decode("utf-8"))
         except Exception:
-            logger.exception("Fatal error while handling message; rejecting without requeue")
+            logger.exception(
+                "Fatal error while handling message; rejecting without requeue"
+            )
             ch.basic_reject(delivery_tag=method.delivery_tag, requeue=False)
             return
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
-    channel.basic_consume(queue=queue_name, on_message_callback=_on_message, auto_ack=False)
+    channel.basic_consume(
+        queue=queue_name, on_message_callback=_on_message, auto_ack=False
+    )
     logger.info("Consuming queue %s", queue_name)
     channel.start_consuming()

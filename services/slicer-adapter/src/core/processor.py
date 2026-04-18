@@ -76,7 +76,9 @@ def process_slicing_task(event_json: str) -> None:
         if weight < 0.001:
             weight = 0.001
         filament_length_m = (
-            (meta.filament_length_mm / 1000.0) if meta.filament_length_mm is not None else None
+            (meta.filament_length_mm / 1000.0)
+            if meta.filament_length_mm is not None
+            else None
         )
 
         completed = SliceCompletedEvent(
@@ -106,7 +108,8 @@ def process_slicing_task(event_json: str) -> None:
             spec_version=settings.event_spec_version,
             payload=SliceFailedPayload(
                 order_id=job.payload.order_id,
-                error_code=type(exc).__name__.upper().replace("EXCEPTION", "")[:32] or "SLICE_ERROR",
+                error_code=type(exc).__name__.upper().replace("EXCEPTION", "")[:32]
+                or "SLICE_ERROR",
                 error_message=str(exc)[:4000],
                 retryable=False,
             ),

@@ -89,7 +89,9 @@ class PostgresDB:
                             data["status"],
                             data["fileId"],
                             data["profileId"],
-                            Json(data["slicingResult"]) if data.get("slicingResult") is not None else None,
+                            Json(data["slicingResult"])
+                            if data.get("slicingResult") is not None
+                            else None,
                             data.get("errorMessage"),
                             data["createdAt"],
                             data["updatedAt"],
@@ -136,7 +138,9 @@ class PostgresDB:
                     return [self._map_order_row(row) for row in cur.fetchall()]
 
                 if table == "files":
-                    cur.execute("SELECT file_id, filename, size_bytes, uploaded_at FROM files ORDER BY uploaded_at DESC")
+                    cur.execute(
+                        "SELECT file_id, filename, size_bytes, uploaded_at FROM files ORDER BY uploaded_at DESC"
+                    )
                     return [self._map_file_row(row) for row in cur.fetchall()]
 
                 raise ValueError(f"Unsupported table: {table}")
@@ -162,7 +166,11 @@ class PostgresDB:
 
         if "slicingResult" in updates:
             set_clauses.append("slicing_result = %s")
-            values.append(Json(updates["slicingResult"]) if updates["slicingResult"] is not None else None)
+            values.append(
+                Json(updates["slicingResult"])
+                if updates["slicingResult"] is not None
+                else None
+            )
 
         if not set_clauses:
             return

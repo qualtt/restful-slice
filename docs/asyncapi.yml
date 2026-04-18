@@ -132,16 +132,16 @@ components:
           additionalProperties: false
           required: [stl_file, printer_profile, process_profile, filament_profile]
           properties:
-            stl_file: 
+            stl_file:
               type: string
               example: "stl/orders/3f8a6aef/model.stl"
-            printer_profile: 
+            printer_profile:
               type: string
               example: "profiles/printers/prusa_mk3s.json"
-            process_profile: 
+            process_profile:
               type: string
               example: "profiles/process/0_20mm_quality.json"
-            filament_profile: 
+            filament_profile:
               type: string
               example: "profiles/filaments/generic_pla.json"
 

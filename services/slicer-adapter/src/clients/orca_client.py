@@ -81,7 +81,9 @@ class OrcaSlicerClient:
         gcode_path = os.path.join(out_dir, "result.gcode")
         raw = resp.content
         if len(raw) >= 2 and raw[:2] == b"PK":
-            raise RuntimeError("Slicer returned a ZIP archive; single G-code export is required")
+            raise RuntimeError(
+                "Slicer returned a ZIP archive; single G-code export is required"
+            )
         if not raw:
             raise RuntimeError("Slicer returned an empty response body")
         if not _body_looks_like_gcode(raw):
