@@ -1,4 +1,3 @@
-"""Основная бизнес-логика: process_slicing_task с моками MinIO, Orca и RabbitMQ."""
 
 from unittest.mock import MagicMock, patch
 
@@ -10,7 +9,7 @@ from src.schemas.events import SliceCompletedEvent, SliceFailedEvent
 
 
 @patch("src.core.processor.shutil.rmtree")
-@patch("src.core.processor.publish_event")
+@patch("src.core.processor.publish_event_with_retries")
 @patch("src.core.processor.OrcaSlicerClient")
 @patch("src.core.processor.MinioClient")
 @patch("src.core.processor.get_settings")
@@ -85,7 +84,7 @@ def test_process_slicing_task_success_publishes_completed(
 
 
 @patch("src.core.processor.shutil.rmtree")
-@patch("src.core.processor.publish_event")
+@patch("src.core.processor.publish_event_with_retries")
 @patch("src.core.processor.OrcaSlicerClient")
 @patch("src.core.processor.MinioClient")
 @patch("src.core.processor.get_settings")
