@@ -124,21 +124,45 @@ services:
       postgres:
         condition: service_healthy
 
-#  slicer_worker:
-#    build:
-#      context: ./services/slicer-worker
-#      dockerfile: Dockerfile
-#    restart: unless-stopped
+  slicer_api:
+    build:
+      context: https://github.com/qualtt/orca-slicer-api.git#main
+      args:
+        ORCASLICER_VERSION: "2.3.0"
+        TARGETARCH: "amd64"
+    restart: unless-stopped
 #    env_file: .env
-#    networks:
-#      # Воркеру не нужна public_net! Он не принимает HTTP-запросы извне.
-#      # Он работает ТОЛЬКО в фоне с RabbitMQ и MinIO.
-#      - backend_net
+#    environment:
+#      - PORT=3000
+#      - NODE_ENV=production
+    networks:
+      - slicer_internal_net
+    volumes:
+      - slicer_data:/app/data
 #    depends_on:
 #      rabbitmq:
 #        condition: service_healthy
 #      minio:
-#       condition: service_healthy
+#        condition: service_healthy
+
+  slicer_adapter:
+    build:
+      context: ./services/slicer-adapter
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - SLICER_API_URL=http://slicer_api:3000
+    networks:
+      - backend_net
+      - slicer_internal_net
+    depends_on:
+      slicer_api:
+        condition: service_started
+      rabbitmq:
+          condition: service_healthy
+      minio:
+        condition: service_healthy
 
 # --- API GATEWAY & WAF ---
   gateway:
@@ -162,7 +186,10 @@ networks:
     driver: bridge
   public_net:
     driver: bridge
+  slicer_internal_net:
+    driver: bridge
 
 volumes:
   pg_data:
   minio_data:
+  slicer_data:
