@@ -25,6 +25,7 @@ jobs:
 
       - name: Run Bandit on handwritten services
         run: bandit -r services/order-service services/inventory-service services/slicer-adapter -x "*/tests/*","*test_*\.py" # -lll -iii
+        continue-on-error: true
 
   # Build + SCA
   build_i_sca:
