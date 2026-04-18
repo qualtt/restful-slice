@@ -1,9 +1,9 @@
-FROM python:3.11-slim
-WORKDIR /app
-# Отключаем буферизацию вывода, чтобы логи сразу падали в докер
+FROM python:3.11-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-COPY main.py .
-CMD ["python", "main.py"]
+# COPY main.py .
+# CMD ["python", "main.py"]
 # FROM python:3.11-slim-bookworm
 
 # # НЕ ПЛАЧЬ! ЭТО НЕЙРОЗАГЛУШКА РИСУЙ ЧЕ ХОЧЕШЬ МНЕ ПОЕБАТЬ, ТОЛЬКО СКАЖИ ПОТОМ
@@ -23,3 +23,17 @@ CMD ["python", "main.py"]
 # COPY . .
 
 # CMD ["python", "worker.py"]
+ENV PYTHONPATH=/app
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+RUN mkdir -p /temp
+
+EXPOSE 8080
+
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
