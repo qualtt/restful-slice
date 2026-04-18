@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from src.clients.minio_client import MinioClient
 from src.clients.orca_client import OrcaSlicerClient
-from src.clients.rabbit_client import publish_event
+from src.clients.rabbit_client import RequeueMessageError, publish_event_with_retries
 from src.core.config import get_settings
 from src.schemas.events import (
     SliceCompletedEvent,
@@ -95,7 +95,9 @@ def process_slicing_task(event_json: str) -> None:
                 slicer_version=meta.slicer_version,
             ),
         )
-        publish_event(RESULTS_QUEUE, completed)
+        publish_event_with_retries(RESULTS_QUEUE, completed)
+    except RequeueMessageError:
+        raise
     except Exception as exc:
         logger.exception("Slicing failed for order_id=%s", job.payload.order_id)
         failed = SliceFailedEvent(
@@ -111,6 +113,6 @@ def process_slicing_task(event_json: str) -> None:
                 retryable=False,
             ),
         )
-        publish_event(RESULTS_QUEUE, failed)
+        publish_event_with_retries(RESULTS_QUEUE, failed)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
