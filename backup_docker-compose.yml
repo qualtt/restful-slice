@@ -171,6 +171,11 @@ services:
       - ./infra/nginx/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
     networks:
       - public_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
       order_service:
         condition: service_healthy
