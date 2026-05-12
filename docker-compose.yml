@@ -92,9 +92,6 @@ services:
     env_file: .env
     environment:
       - PORT=${ORDER_PORT}
-    volumes:
-      # Синхронизируем папку с кодом и папку /app в докере! В ПРОДЕ НАВЕРН ВЫПИЛЮ
-      - ./services/order-service:/app
     networks:
       - public_net
       - backend_net
@@ -112,9 +109,6 @@ services:
     env_file: .env
     environment:
       - PORT=${INVENTORY_PORT}
-    volumes:
-      # Синхронизируем папку с кодом и папку /app в докере! В ПРОДЕ НАВЕРН ВЫПИЛЮ
-      - ./services/inventory-service:/app
     networks:
       - public_net
       - backend_net
@@ -158,7 +152,7 @@ services:
       slicer_api:
         condition: service_started
       rabbitmq:
-          condition: service_healthy
+        condition: service_healthy
       minio:
         condition: service_healthy
 
