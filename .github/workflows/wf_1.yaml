@@ -30,7 +30,7 @@ jobs:
       - name: Run Pytest with Coverage
         run: |
           export PYTHONPATH=$(pwd)/services/order-service:$(pwd)/services/inventory-service:$(pwd)/services/slicer-adapter:$(pwd)
-          pytest tests/ services/slicer-adapter/tests/ --cov=services/ --cov-report=xml
+          pytest services/tests/ services/slicer-adapter/tests/ --cov=services/ --cov-report=xml
         continue-on-error: true
 
       - name: Upload coverage to Codecov
