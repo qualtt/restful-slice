@@ -63,7 +63,7 @@ jobs:
 
           # 3. Тесты адаптера
           export PYTHONPATH="$(pwd):$(pwd)/services/slicer-adapter"
-          pytest services/slicer-adapter/tests/ --cov=services/slicer-adapter --cov-report=xml --cov-append- name: Run Pytest with Coverage
+          pytest services/slicer-adapter/tests/ --cov=services/slicer-adapter --cov-report=xml --cov-append
         continue-on-error: true
 
       - name: Upload coverage to Codecov
