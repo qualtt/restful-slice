@@ -35,7 +35,7 @@ class TestOrderManager:
 
     def test_get_nonexistent_order(self):
         with pytest.raises(KeyError, match="не найден"):
-            self.manager.get_order("invalid_id")
+            self.manager.get_order(str(uuid.uuid4()))
 
     def test_valid_status_transition(self):
         order = self.manager.create_order(self.file_id, self.profile_id)

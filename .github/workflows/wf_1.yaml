@@ -53,7 +53,9 @@ jobs:
 
       - name: Run Pytest with Coverage
         run: |
-          export PYTHONPATH=$(pwd)/services/order-service:$(pwd)/services/inventory-service:$(pwd)/services/slicer-adapter:$(pwd)
+          # ВАЖНО: Добавляем текущую директорию (.) в начало PYTHONPATH,
+          # чтобы тесты всегда находили правильные модули (services.order-service.core и т.д.)
+          export PYTHONPATH=$(pwd):$(pwd)/services/order-service:$(pwd)/services/inventory-service:$(pwd)/services/slicer-adapter
           pytest services/tests/ services/slicer-adapter/tests/ --cov=services/ --cov-report=xml
         continue-on-error: true
 
