@@ -15,6 +15,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Start required isolated services for tests
+        run: |
+          echo "POSTGRES_USER=postgres" >> .env
+          echo "POSTGRES_PASSWORD=postgres" >> .env
+          echo "POSTGRES_DB=postgres" >> .env
+          echo "ORDER_DB_USER=order_admin" >> .env
+          echo "ORDER_DB_PASSWORD=order_pass" >> .env
+          echo "INV_DB_USER=inv_admin" >> .env
+          echo "INV_DB_PASSWORD=inv_pass" >> .env
+          echo "RMQ_USER=rmquser" >> .env
+          echo "RMQ_PASSWORD=rmqpass" >> .env
+          echo "MINIO_ROOT_USER=miniouser" >> .env
+          echo "MINIO_ROOT_PASSWORD=miniopass" >> .env
+          echo "ORDER_PORT=8001" >> .env
+          echo "INVENTORY_PORT=8002" >> .env
+
+          docker compose up -d postgres rabbitmq minio
+
+          # Ожидание готовности БД
+          echo "Waiting for PostgreSQL to start..."
+          until docker compose exec -T postgres pg_isready -U postgres -d postgres; do
+            sleep 2
+          done
+
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
