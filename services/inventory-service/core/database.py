@@ -171,8 +171,7 @@ class PostgresDB:
         # Kept for test compatibility.
         with self._connect() as conn:
             with conn.cursor() as cur:
-                cur.execute("TRUNCATE TABLE reservations")
-                cur.execute("TRUNCATE TABLE inventory")
+                cur.execute("TRUNCATE TABLE inventory CASCADE")
 
 
 # Alias name kept to avoid touching all imports at once.
