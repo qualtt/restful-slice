@@ -1,0 +1,25 @@
+services:
+  order_service:
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ./services/order-service:/app
+
+  inventory_service:
+    build:
+      context: ./services/inventory-service
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ./services/inventory-service:/app
+
+  slicer_adapter:
+    build:
+      context: ./services/slicer-adapter
+      dockerfile: Dockerfile
+      target: development
+    # Если хочешь, чтобы slicer-adapter тоже перезагружался с лайв-релоадом:
+    volumes:
+      - ./services/slicer-adapter:/app

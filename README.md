@@ -45,7 +45,7 @@ graph TD
 
     %% Пользователь и шлюз
     User([Пользователь]) -->|"HTTP REST/JSON"| Gateway["NGINX API Gateway<br/><small>Маршрутизация, балансировка,<br/>client_max_body_size</small>"]:::gateway
-    
+
     %% API Маршруты
     Gateway -->|"GET/POST /api/orders"| OrderSvc["<b>1. Order Service</b><br/><small>Оркестратор заказов</small>"]:::service
     Gateway -->|"GET/POST /api/inventory"| InvSvc["<b>3. Inventory Service</b><br/><small>Склад, пресеты, цены</small>"]:::service
@@ -56,7 +56,7 @@ graph TD
 
     %% Работа с файлами (MinIO)
     OrderSvc -->|"S3 API: Сохраняет STL"| Minio[("MinIO / S3<br/><small>Файлы (STL / G-Code)</small>")]:::storage
-    
+
     %% Очереди сообщений (RabbitMQ)
     OrderSvc -->|"AMQP: Публикация задачи<br/>{order_id, file}"| RMQ[["RabbitMQ Broker"]]:::broker
     Worker["<b>2. Slicing Worker</b><br/><small>Воркер нарезки</small>"]:::worker -->|"AMQP: Потребление задач<br/>Подписка на очередь"| RMQ
@@ -110,7 +110,7 @@ graph TD
   * Хранение базы физических катушек пластика (цвета, типы, фактические остатки в граммах).
   * **Система резервирования (Internal API)**: По скрытому запросу от `Order Service` проверяет наличие нужного объема пластика, временно "замораживает" (резервирует) его, рассчитывает стоимость печати и возвращает цену оркестратору.
   * Окончательное списание зарезервированного пластика (или возврат на склад при отмене заказа).
- 
+
 ## ER-диаграмма
 ```mermaid
 
@@ -188,9 +188,9 @@ erDiagram
         decimal markup_percent "Коэффициент наценки (e.g. 1.2 = +20%)"
         boolean is_enabled "default: true"
     }
-    
+
     USERS ||--o{ ORDERS : "Создает"
-    
+
     INVENTORY ||--o{ MATERIAL_PRESETS : "Привязывается к пресету"
     INVENTORY ||--o{ MATERIAL_RESERVATIONS : "Хранит резервы"
 
@@ -198,7 +198,7 @@ erDiagram
     MATERIAL_PRESETS ||--o{ PRINT_PROFILES : "Включает (Материал)"
     PROCESS_PRESETS ||--o{ PRINT_PROFILES : "Включает (Процесс)"
 
-    
+
     PRINT_PROFILES ||..o{ ORDERS : "HTTP GET /api/profiles/{id}"
     ORDERS ||..o| MATERIAL_RESERVATIONS : "HTTP POST /api/internal/inventory/reserve"
 
@@ -215,4 +215,3 @@ docker-compose up -d
 # Посмотреть логи всех сервисов
 docker-compose logs -f
 ```
-

@@ -1,8 +1,6 @@
 version: '3.8'
 
 
-# Глобальный блок env_file в версии 3.8 не поддерживается (и не нужен).
-# Docker Compose САМ автоматически читает файл .env в папке и подставляет ${ПЕРЕМЕННЫЕ}.
 
 services:
   postgres:
@@ -21,16 +19,13 @@ services:
       - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
     networks:
       - backend_net
-    # Биндим только на localhost! Никаких доступов извне.
     ports:
       - "127.0.0.1:5434:5432"
-    # DEV-ПРАКТИКА: Проверка здоровья БД
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    # DEV-ПРАКТИКА: Ограничение ресурсов (cgroups)
     deploy:
       resources:
         limits:
@@ -46,8 +41,8 @@ services:
     networks:
       - backend_net
     ports:
-      - "127.0.0.1:5672:5672"     # Порт для кода
-      - "127.0.0.1:15672:15672"   # Админка
+      - "127.0.0.1:5672:5672"     # порт для кода
+      - "127.0.0.1:15672:15672"   # админка
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 15s
@@ -70,7 +65,7 @@ services:
       - backend_net
     ports:
       - "127.0.0.1:9000:9000" # API
-      - "127.0.0.1:9001:9001" # Админка
+      - "127.0.0.1:9001:9001" # админка
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -84,7 +79,7 @@ services:
           cpus: '1.0'
           memory: 512M
 
-# То шо билдится
+# то шо билдится
 
   order_service:
     build:
@@ -94,6 +89,9 @@ services:
     env_file: .env
     environment:
       - PORT=${ORDER_PORT}
+    volumes:
+      # синхронизируем папку с кодом и папку /app в докере! В ПРОДЕ НАВЕРН ВЫПИЛЮ
+      - ./services/order-service:/app
     networks:
       - public_net
       - backend_net
@@ -111,6 +109,9 @@ services:
     env_file: .env
     environment:
       - PORT=${INVENTORY_PORT}
+    volumes:
+      # Синхронизируем папку с кодом и папку /app в докере! В ПРОДЕ НАВЕРН ВЫПИЛЮ
+      - ./services/inventory-service:/app
     networks:
       - public_net
       - backend_net
@@ -118,17 +119,41 @@ services:
       postgres:
         condition: service_healthy
 
-  slicer_worker:
+  slicer_api:
     build:
-      context: ./services/slicer-worker
+      context: https://github.com/qualtt/orca-slicer-api.git#main
+      args:
+        ORCASLICER_VERSION: "2.3.0"
+        TARGETARCH: "amd64"
+    restart: unless-stopped
+#    env_file: .env
+#    environment:
+#      - PORT=3000
+#      - NODE_ENV=production
+    networks:
+      - slicer_internal_net
+    volumes:
+      - slicer_data:/app/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  slicer_adapter:
+    build:
+      context: ./services/slicer-adapter
       dockerfile: Dockerfile
     restart: unless-stopped
     env_file: .env
+    environment:
+      - SLICER_API_URL=http://slicer_api:3000
     networks:
-      # Воркеру не нужна public_net! Он не принимает HTTP-запросы извне.
-      # Он работает ТОЛЬКО в фоне с RabbitMQ и MinIO.
       - backend_net
+      - slicer_internal_net
     depends_on:
+      slicer_api:
+        condition: service_started
       rabbitmq:
         condition: service_healthy
       minio:
@@ -143,12 +168,19 @@ services:
     environment:
       - SEC_RULE_ENGINE=On
     volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
     networks:
       - public_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
-      - order_service
-      - inventory_service
+      order_service:
+        condition: service_healthy
+      inventory_service:
+        condition: service_healthy
 
 # ЯВНО ОБЪЯВЛЯЕМ СЕТИ И ТОМА!
 networks:
@@ -156,7 +188,10 @@ networks:
     driver: bridge
   public_net:
     driver: bridge
+  slicer_internal_net:
+    driver: bridge
 
 volumes:
   pg_data:
   minio_data:
+  slicer_data:

@@ -873,7 +873,7 @@ paths:
       description: |
         Внутренний эндпоинт. Вызывается Order Service'ом после завершения нарезки воркером.
         Inventory Service находит профиль, вычисляет нужную катушку, проверяет `available_grams`.
-        Если пластика хватает — создает запись в `material_reservations` со статусом `reserved` 
+        Если пластика хватает — создает запись в `material_reservations` со статусом `reserved`
         и возвращает рассчитанную стоимость с учетом `markup_percent`.
       operationId: reserveMaterialAndCalculatePrice
       requestBody:
