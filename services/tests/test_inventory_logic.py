@@ -57,7 +57,7 @@ class TestInventoryStock:
 
     def test_reserve_material_success(self):
         self.stock.add_material(1, 1000.0)
-        #        res_id = self.stock.reserve_material("order-1", 1, 250.0)  # тут упало "не используется"
+        self.stock.reserve_material("order-1", 1, 250.0)
 
         assert self.stock.get_available(1) == 750.0
         assert self.stock.get_stock(1) == 1000.0  # Stock itself hasn't changed yet
