@@ -51,12 +51,19 @@ jobs:
           # Устанавливаем все зависимости
           for req in $(find services -name "requirements*.txt"); do pip install -r $req; done
 
-      - name: Run Pytest with Coverage
+      - name: Run Pytest over tests
         run: |
-          # ВАЖНО: Добавляем текущую директорию (.) в начало PYTHONPATH,
-          # чтобы тесты всегда находили правильные модули (services.order-service.core и т.д.)
-          export PYTHONPATH=$(pwd):$(pwd)/services/order-service:$(pwd)/services/inventory-service:$(pwd)/services/slicer-adapter
-          pytest services/tests/ services/slicer-adapter/tests/ --cov=services/ --cov-report=xml
+          # 1. Тесты инвентаря
+          export PYTHONPATH="$(pwd):$(pwd)/services/inventory-service"
+          pytest services/tests/test_inventory_logic.py --cov=services/inventory-service --cov-report=xml --cov-append
+
+          # 2. Тесты заказов
+          export PYTHONPATH="$(pwd):$(pwd)/services/order-service"
+          pytest services/tests/test_order_logic.py --cov=services/order-service --cov-report=xml --cov-append
+
+          # 3. Тесты адаптера
+          export PYTHONPATH="$(pwd):$(pwd)/services/slicer-adapter"
+          pytest services/slicer-adapter/tests/ --cov=services/slicer-adapter --cov-report=xml --cov-append- name: Run Pytest with Coverage
         continue-on-error: true
 
       - name: Upload coverage to Codecov
