@@ -55,15 +55,15 @@ jobs:
         run: |
           # 1. Тесты инвентаря
           export PYTHONPATH="$(pwd):$(pwd)/services/inventory-service"
-          pytest services/tests/test_inventory_logic.py --cov=services/inventory-service --cov-report=xml --cov-append
+          pytest services/tests/test_inventory_logic.py --cov=services/inventory-service --cov-report=term --cov-report=xml
 
           # 2. Тесты заказов
           export PYTHONPATH="$(pwd):$(pwd)/services/order-service"
-          pytest services/tests/test_order_logic.py --cov=services/order-service --cov-report=xml --cov-append
+          pytest services/tests/test_order_logic.py --cov=services/order-service --cov-report=xml --cov-report=term
 
           # 3. Тесты адаптера
           export PYTHONPATH="$(pwd):$(pwd)/services/slicer-adapter"
-          pytest services/slicer-adapter/tests/ --cov=services/slicer-adapter --cov-report=xml --cov-append
+          pytest services/slicer-adapter/tests/ --cov=services/slicer-adapter --cov-report=xml --cov-report=term
         continue-on-error: true
 
       - name: Upload coverage to Codecov
