@@ -2,8 +2,6 @@ import sys
 import os
 import pytest
 
-from core.order_manager import OrderManager, OrderStatus, InvalidStatusTransitionError
-
 sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../order-service"))
 )
@@ -14,6 +12,8 @@ if "core.calculator" in sys.modules:
     del sys.modules["core.calculator"]
 if "core.stock" in sys.modules:
     del sys.modules["core.stock"]
+
+from core.order_manager import OrderManager, OrderStatus, InvalidStatusTransitionError
 
 
 class TestOrderManager:

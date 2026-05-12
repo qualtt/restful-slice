@@ -1,8 +1,6 @@
 import sys
 import os
 import pytest
-from core.calculator import Calculator
-from core.stock import InventoryStock, InsufficientStockError
 
 sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../inventory-service"))
@@ -12,6 +10,9 @@ if "core" in sys.modules:
     del sys.modules["core"]
 if "core.order_manager" in sys.modules:
     del sys.modules["core.order_manager"]
+
+from core.calculator import Calculator
+from core.stock import InventoryStock, InsufficientStockError
 
 
 class TestCostCalculator:
