@@ -62,7 +62,10 @@ services:
     image: ghcr.io/qualtt/restful-slice/order-service:latest
     environment:
       - PORT=${ORDER_PORT}
-      # Сюда прокинешь доступы к БД
+      - DB_HOST=postgres
+      - POSTGRES_PORT=5432
+      - ORDER_DB_USER=${ORDER_DB_USER}
+      - ORDER_DB_PASSWORD=${ORDER_DB_PASSWORD}
     networks:
       - public_net
       - backend_net
@@ -76,6 +79,10 @@ services:
     image: ghcr.io/qualtt/restful-slice/inventory-service:latest
     environment:
       - PORT=${INVENTORY_PORT}
+      - DB_HOST=postgres
+      - POSTGRES_PORT=5432
+      - INV_DB_USER=${INV_DB_USER}
+      - INV_DB_PASSWORD=${INV_DB_PASSWORD}
     networks:
       - public_net
       - backend_net
@@ -98,6 +105,13 @@ services:
     image: ghcr.io/qualtt/restful-slice/slicer-adapter:latest
     environment:
       - SLICER_API_URL=http://slicer_api:3000
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RMQ_USER}
+      - RABBITMQ_PASSWORD=${RMQ_PASSWORD}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO_BUCKET=slices
     networks:
       - backend_net
       - slicer_internal_net
