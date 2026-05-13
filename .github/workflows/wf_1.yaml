@@ -2,9 +2,9 @@ name: CI/CD pipeline
 
 on:
   push:
-    branches: [main2]
+    branches: [main]
   pull_request:
-    branches: [main2]
+    branches: [main]
 
 # ВАЖНО: Разрешаем Actions записывать собранные образы в GitHub Packages (GHCR)
 permissions:
