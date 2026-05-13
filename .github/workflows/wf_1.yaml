@@ -129,7 +129,7 @@ jobs:
           exit-code: '0'
 
       - name: Push Order Service image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main2'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: docker push ghcr.io/${{ env.REPO_LC }}/order-service:latest
 
       # --- СБОРКА И ПРОВЕРКА INVENTORY SERVICE ---
@@ -147,7 +147,7 @@ jobs:
           exit-code: '0'
 
       - name: Push Inventory Service image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main2'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: docker push ghcr.io/${{ env.REPO_LC }}/inventory-service:latest
 
       # --- СБОРКА И ПРОВЕРКА SLICER ADAPTER ---
@@ -165,7 +165,7 @@ jobs:
           exit-code: '0'
 
       - name: Push Slicer Adapter image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main2'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: docker push ghcr.io/${{ env.REPO_LC }}/slicer-adapter:latest
 
   # 4. Deploy step: на домашнем сервере (АДАПТИРОВАНО ПОД SWARM)
@@ -173,7 +173,7 @@ jobs:
     name: Deploy to Swarm Cluster
     runs-on: self-hosted
     needs: build_i_sca
-    if: github.ref == 'refs/heads/main2'
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
