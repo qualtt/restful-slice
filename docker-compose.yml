@@ -1,9 +1,7 @@
-version: '3.8'
-
-
 # Глобальный блок env_file в версии 3.8 не поддерживается (и не нужен).
 # Docker Compose САМ автоматически читает файл .env в папке и подставляет ${ПЕРЕМЕННЫЕ}.
 
+# компоуз вроде не тронут, слава богу
 services:
   postgres:
     image: postgres:15-alpine
@@ -94,9 +92,6 @@ services:
     env_file: .env
     environment:
       - PORT=${ORDER_PORT}
-    volumes:
-      # Синхронизируем папку с кодом и папку /app в докере! В ПРОДЕ НАВЕРН ВЫПИЛЮ
-      - ./services/order-service:/app
     networks:
       - public_net
       - backend_net
@@ -114,9 +109,6 @@ services:
     env_file: .env
     environment:
       - PORT=${INVENTORY_PORT}
-    volumes:
-      # Синхронизируем папку с кодом и папку /app в докере! В ПРОДЕ НАВЕРН ВЫПИЛЮ
-      - ./services/inventory-service:/app
     networks:
       - public_net
       - backend_net
@@ -160,7 +152,7 @@ services:
       slicer_api:
         condition: service_started
       rabbitmq:
-          condition: service_healthy
+        condition: service_healthy
       minio:
         condition: service_healthy
 
@@ -171,7 +163,7 @@ services:
     ports:
       - "80:80"
     environment:
-      - SEC_RULE_ENGINE=On
+      - MODSEC_RULE_ENGINE=DetectionOnly
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
     networks:

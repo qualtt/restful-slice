@@ -1,0 +1,74 @@
+---
+- name: Setup NetBird and Docker on all nodes
+  hosts: all
+  become: yes # Выполнять через sudo
+  vars:
+    # ВСТАВЬ СЮДА СВОЙ КЛЮЧ NETBIRD!
+    netbird_setup_key: "{{ lookup('env', 'NETBIRD_SETUP_KEY') }}"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    # --- УСТАНОВКА NETBIRD ---
+    - name: Download NetBird install script
+      get_url:
+        url: https://pkgs.netbird.io/install.sh
+        dest: /tmp/netbird-install.sh
+        mode: '0755'
+
+    - name: Run NetBird installer
+      command: sh /tmp/netbird-install.sh
+      args:
+        creates: /usr/bin/netbird
+
+    - name: Connect to NetBird network
+      command: netbird up --setup-key {{ netbird_setup_key }}
+      register: netbird_result
+      failed_when: false # Игнорируем ошибку, если уже подключен
+
+    # --- УСТАНОВКА DOCKER ---
+    - name: Install dependencies for Docker
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+
+    - name: Download Docker install script
+      get_url:
+        url: https://get.docker.com
+        dest: /tmp/get-docker.sh
+        mode: '0755'
+
+    - name: Install Docker
+      command: sh /tmp/get-docker.sh
+      args:
+        creates: /usr/bin/docker
+
+    - name: Ensure Docker is running and enabled
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    # --- ИМЕНОВАНИЕ И МЕТКИ (DO-IT-YOURSELF) ---
+    - name: Set hostname to match inventory name
+      hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Add hostname to /etc/hosts
+      lineinfile:
+        path: /etc/hosts
+        line: "127.0.1.1 {{ inventory_hostname }}"
+        state: present
+
+    # Метка для Docker Swarm (применяется только если нода уже в Swarm,
+    # если нет - команда просто выдаст ошибку, которую мы проигнорируем)
+    - name: Apply Docker Swarm labels
+      shell: "docker node update --label-add zone={{ 'compute' if inventory_hostname in groups['proxmox'] else 'edge' }} {{ inventory_hostname }}"
+      delegate_to: manager
+      failed_when: false
+      changed_when: false

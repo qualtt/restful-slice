@@ -1,0 +1,153 @@
+version: '3.8'
+
+services:
+  postgres:
+    # Берем образ из Docker Hub
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      ORDER_DB_USER: ${ORDER_DB_USER}
+      ORDER_DB_PASSWORD: ${ORDER_DB_PASSWORD}
+      INV_DB_USER: ${INV_DB_USER}
+      INV_DB_PASSWORD: ${INV_DB_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    configs:
+      - source: postgres_init
+        target: /docker-entrypoint-initdb.d/init.sh
+    networks:
+      - backend_net
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager # БД живет ТОЛЬКО на менеджере (дома)
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RMQ_PASSWORD}
+    networks:
+      - backend_net
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    networks:
+      - backend_net
+    volumes:
+      - minio_data:/data
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  # --- ТВОИ СЕРВИСЫ (Скачиваются из GitHub Registry) ---
+
+  order_service:
+    # Замени "твое-имя-в-гитхабе" на реальное
+    image: ghcr.io/qualtt/restful-slice/order-service:latest
+    environment:
+      - PORT=${ORDER_PORT}
+      - DB_HOST=postgres
+      - POSTGRES_PORT=5432
+      - ORDER_DB_USER=${ORDER_DB_USER}
+      - ORDER_DB_PASSWORD=${ORDER_DB_PASSWORD}
+    networks:
+      - public_net
+      - backend_net
+    deploy:
+      replicas: 2
+      update_config:
+        order: start-first # Zero-downtime деплой
+        failure_action: rollback
+
+  inventory_service:
+    image: ghcr.io/qualtt/restful-slice/inventory-service:latest
+    environment:
+      - PORT=${INVENTORY_PORT}
+      - DB_HOST=postgres
+      - POSTGRES_PORT=5432
+      - INV_DB_USER=${INV_DB_USER}
+      - INV_DB_PASSWORD=${INV_DB_PASSWORD}
+    networks:
+      - public_net
+      - backend_net
+    deploy:
+      replicas: 2
+
+  slicer_api:
+    image: ghcr.io/qualtt/restful-slice/slicer-api:latest
+    networks:
+      - slicer_internal_net
+    volumes:
+      - slicer_data:/app/data
+    deploy:
+      replicas: 4 # Даем жару на нарезку!
+      placement:
+        constraints:
+          - node.labels.zone == compute # Только на домашних воркерах!
+
+  slicer_adapter:
+    image: ghcr.io/qualtt/restful-slice/slicer-adapter:latest
+    environment:
+      - SLICER_API_URL=http://slicer_api:3000
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RMQ_USER}
+      - RABBITMQ_PASSWORD=${RMQ_PASSWORD}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO_BUCKET=slices
+    networks:
+      - backend_net
+      - slicer_internal_net
+    deploy:
+      replicas: 4
+      placement:
+        constraints:
+          - node.labels.zone == compute
+
+  gateway:
+    image: owasp/modsecurity-crs:nginx-alpine
+    ports:
+      - "80:80"
+    environment:
+      - SEC_RULE_ENGINE=On
+    networks:
+      - public_net
+    deploy:
+      mode: global # Запустит ровно по 1 копии на КАЖДОЙ ноде, где разрешено
+      placement:
+        constraints:
+          - node.labels.zone == edge # Gateway будет крутиться только на Beget!
+
+networks:
+  backend_net:
+    driver: overlay
+  public_net:
+    driver: overlay
+  slicer_internal_net:
+    driver: overlay
+
+volumes:
+  pg_data:
+  minio_data:
+  slicer_data:
+
+configs:
+  postgres_init:
+    file: ./infra/postgres/init.sh
