@@ -1,9 +1,10 @@
 import os
-from typing import BinaryIO
+from typing import BinaryIO, Protocol
 
 import requests
 
-from src.core.config import Settings
+class _SettingsLike(Protocol):
+    orca_api_url: str
 
 
 def _body_looks_like_gcode(body: bytes) -> bool:
@@ -29,7 +30,7 @@ def _body_looks_like_gcode(body: bytes) -> bool:
 
 
 class OrcaSlicerClient:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: _SettingsLike) -> None:
         self._base = settings.orca_api_url.rstrip("/")
 
     def slice_model(
