@@ -6,8 +6,13 @@ on:
   pull_request:
     branches: [main2]
 
+# ВАЖНО: Разрешаем Actions записывать собранные образы в GitHub Packages (GHCR)
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  # Unit Тесты и анализ покрытия кода
+  # 1. Unit Тесты и анализ покрытия кода (БЕЗ ИЗМЕНЕНИЙ)
   test_and_coverage:
     name: Tests & Coverage
     runs-on: ubuntu-latest
@@ -33,7 +38,6 @@ jobs:
 
           docker compose up -d postgres rabbitmq minio
 
-          # Ожидание готовности БД
           echo "Waiting for PostgreSQL to start..."
           until docker compose exec -T postgres pg_isready -U postgres -d postgres; do
             sleep 2
@@ -48,20 +52,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest pytest-cov asyncio httpx
-          # Устанавливаем все зависимости
           for req in $(find services -name "requirements*.txt"); do pip install -r $req; done
 
       - name: Run Pytest over tests
         run: |
-          # 1. Тесты инвентаря
           export PYTHONPATH="$(pwd):$(pwd)/services/inventory-service"
           pytest services/tests/test_inventory_logic.py --cov=services/inventory-service --cov-report=term-missing --cov-report=xml --cov-append
 
-          # 2. Тесты заказов
           export PYTHONPATH="$(pwd):$(pwd)/services/order-service"
           pytest services/tests/test_order_logic.py --cov=services/order-service --cov-report=term-missing --cov-report=xml --cov-append
 
-          # 3. Тесты адаптера
           export PYTHONPATH="$(pwd):$(pwd)/services/slicer-adapter"
           pytest services/slicer-adapter/tests/ --cov=services/slicer-adapter --cov-report=term-missing --cov-report=xml --cov-append
         continue-on-error: true
@@ -71,7 +71,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
-  # SAST на весь handwritten код проекта
+  # 2. SAST на весь handwritten код проекта (БЕЗ ИЗМЕНЕНИЙ)
   security_sast:
     name: SAST
     needs: test_and_coverage
@@ -89,60 +89,88 @@ jobs:
         run: pip install bandit
 
       - name: Run Bandit on handwritten services
-        run: bandit -r services/order-service services/inventory-service services/slicer-adapter -x "*/tests/*","*test_*\.py" # -lll -iii
+        run: bandit -r services/order-service services/inventory-service services/slicer-adapter -x "*/tests/*","*test_*\.py"
         continue-on-error: true
 
-  # Build + SCA
+  # 3. Build + SCA + Push в GHCR (АДАПТИРОВАНО ПОД КЛАСТЕР)
   build_i_sca:
-    name: Build and SCA
+    name: Build, SCA and Push
     runs-on: ubuntu-latest
     needs: security_sast
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Авторизуемся в GitHub Container Registry
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Docker требует имя репозитория в нижнем регистре
+      - name: Set lower case owner name
+        run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
+
+      # --- СБОРКА И ПРОВЕРКА ORDER SERVICE ---
       - name: Build Order Service image
-        run: docker build -t order-service:test ./services/order-service
-
-      - name: Build Inventory Service image
-        run: docker build -t inventory-service:test ./services/inventory-service
-
-      - name: Build Slicer Adapter image
-        run: docker build -t slicer-adapter:test ./services/slicer-adapter
+        # ВАЖНО: Указываем --target production для многоэтапной сборки
+        run: docker build --target production -t ghcr.io/${{ env.REPO_LC }}/order-service:latest ./services/order-service
 
       - name: Scan Order Service image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: order-service:test
+          image-ref: ghcr.io/${{ env.REPO_LC }}/order-service:latest
           format: table
           ignore-unfixed: true
           severity: 'HIGH,CRITICAL'
           scanners: 'vuln,secret'
           exit-code: '0'
+
+      - name: Push Order Service image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main2'
+        run: docker push ghcr.io/${{ env.REPO_LC }}/order-service:latest
+
+      # --- СБОРКА И ПРОВЕРКА INVENTORY SERVICE ---
+      - name: Build Inventory Service image
+        run: docker build --target production -t ghcr.io/${{ env.REPO_LC }}/inventory-service:latest ./services/inventory-service
 
       - name: Scan Inventory Service image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: inventory-service:test
+          image-ref: ghcr.io/${{ env.REPO_LC }}/inventory-service:latest
           format: table
           ignore-unfixed: true
           severity: 'HIGH,CRITICAL'
           scanners: 'vuln,secret'
           exit-code: '0'
+
+      - name: Push Inventory Service image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main2'
+        run: docker push ghcr.io/${{ env.REPO_LC }}/inventory-service:latest
+
+      # --- СБОРКА И ПРОВЕРКА SLICER ADAPTER ---
+      - name: Build Slicer Adapter image
+        run: docker build --target production -t ghcr.io/${{ env.REPO_LC }}/slicer-adapter:latest ./services/slicer-adapter
 
       - name: Scan Slicer Adapter image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: slicer-adapter:test
+          image-ref: ghcr.io/${{ env.REPO_LC }}/slicer-adapter:latest
           format: table
           ignore-unfixed: true
           severity: 'HIGH,CRITICAL'
           scanners: 'vuln,secret'
           exit-code: '0'
 
-  # Deploy step: на домашнем сервере
+      - name: Push Slicer Adapter image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main2'
+        run: docker push ghcr.io/${{ env.REPO_LC }}/slicer-adapter:latest
+
+  # 4. Deploy step: на домашнем сервере (АДАПТИРОВАНО ПОД SWARM)
   deploy:
-    name: Deploy to Production
+    name: Deploy to Swarm Cluster
     runs-on: self-hosted
     needs: build_i_sca
     if: github.ref == 'refs/heads/main2'
@@ -150,13 +178,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Раннер логинится в GHCR от лица сервера, чтобы иметь права скачать образы
+      - name: Log in to the Container registry on server
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
       - name: Decrypt secrets
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
-          # SOPS автоматом подхватит ключ из переменной окружения на сервере
           sops --decrypt --input-type dotenv --output-type dotenv infra/sops/secrets.enc.env > .env
 
-      - name: Start Docker Compose
+      - name: Deploy to Docker Swarm
         run: |
-          docker compose up -d --build
-
-# а вдруг заработает...
+          # ВАЖНО: --with-registry-auth передает токен доступа ВСЕМ воркерам в кластере (Beget, proxmox), чтобы они тоже могли скачать образы из GHCR
+          docker stack deploy --with-registry-auth -c docker-stack.yml restful-slice

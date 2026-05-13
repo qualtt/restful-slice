@@ -1,0 +1,30 @@
+---
+- name: Fix broken APT state from IO Error
+  hosts: proxmox  # Идем ТОЛЬКО на домашние виртуалки, Beget не трогаем
+  become: yes
+  tasks:
+    - name: Remove corrupted extended_states file (manager issue)
+      file:
+        path: /var/lib/apt/extended_states
+        state: absent
+
+    - name: Clean APT cache to remove corrupted .deb files (worker issue)
+      command: apt-get clean
+
+    - name: Remove partial downloads
+      file:
+        path: /var/cache/apt/archives/partial
+        state: absent
+
+    - name: Create empty partial directory
+      file:
+        path: /var/cache/apt/archives/partial
+        state: directory
+        mode: '0755'
+
+    - name: Reconfigure broken packages
+      command: dpkg --configure -a
+      ignore_errors: yes
+
+    - name: Fix broken dependencies
+      command: apt-get install -f -y
