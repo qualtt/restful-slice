@@ -150,6 +150,19 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: docker push ghcr.io/${{ env.REPO_LC }}/inventory-service:latest
 
+            # --- СБОРКА И ПУШ SLICER API (ИЗ ВНЕШНЕГО РЕПО) ---
+      - name: Build Slicer API image
+        run: |
+          docker build \
+            --build-arg ORCASLICER_VERSION="2.3.0" \
+            --build-arg TARGETARCH="amd64" \
+            -t ghcr.io/${{ env.REPO_LC }}/slicer-api:latest \
+            https://github.com/qualtt/orca-slicer-api.git#main
+
+      - name: Push Slicer API image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker push ghcr.io/${{ env.REPO_LC }}/slicer-api:latest
+
       # --- СБОРКА И ПРОВЕРКА SLICER ADAPTER ---
       - name: Build Slicer Adapter image
         run: docker build --target production -t ghcr.io/${{ env.REPO_LC }}/slicer-adapter:latest ./services/slicer-adapter
@@ -168,11 +181,12 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: docker push ghcr.io/${{ env.REPO_LC }}/slicer-adapter:latest
 
+
   # 4. Deploy step: на домашнем сервере (АДАПТИРОВАНО ПОД SWARM)
   deploy:
     name: Deploy to Swarm Cluster
     runs-on: self-hosted
-    # needs: build_i_sca
+    needs: build_i_sca
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
@@ -190,5 +204,8 @@ jobs:
 
       - name: Deploy to Docker Swarm
         run: |
-          # ВАЖНО: --with-registry-auth передает токен доступа ВСЕМ воркерам в кластере (Beget, proxmox), чтобы они тоже могли скачать образы из GHCR
+          # Экспортируем все переменные из .env в окружение
+          export $(grep -v '^#' .env | xargs)
+
+          # Запускаем деплой (он подхватит переменные, так как они в export)
           docker stack deploy --with-registry-auth -c docker-stack.yml restful-slice
