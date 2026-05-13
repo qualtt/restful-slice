@@ -59,7 +59,7 @@ services:
 
   order_service:
     # Замени "твое-имя-в-гитхабе" на реальное
-    image: ghcr.io/твое-имя-в-гитхабе/restful-slice/order-service:latest
+    image: ghcr.io/qualtt/restful-slice/order-service:latest
     environment:
       - PORT=${ORDER_PORT}
       # Сюда прокинешь доступы к БД
@@ -73,7 +73,7 @@ services:
         failure_action: rollback
 
   inventory_service:
-    image: ghcr.io/твое-имя-в-гитхабе/restful-slice/inventory-service:latest
+    image: ghcr.io/qualtt/restful-slice/inventory-service:latest
     environment:
       - PORT=${INVENTORY_PORT}
     networks:
@@ -83,7 +83,7 @@ services:
       replicas: 2
 
   slicer_api:
-    image: ghcr.io/твое-имя-в-гитхабе/restful-slice/slicer-api:latest
+    image: ghcr.io/qualtt/restful-slice/slicer-api:latest
     networks:
       - slicer_internal_net
     volumes:
@@ -95,7 +95,7 @@ services:
           - node.labels.zone == compute # Только на домашних воркерах!
 
   slicer_adapter:
-    image: ghcr.io/твое-имя-в-гитхабе/restful-slice/slicer-adapter:latest
+    image: ghcr.io/qualtt/restful-slice/slicer-adapter:latest
     environment:
       - SLICER_API_URL=http://slicer_api:3000
     networks:
