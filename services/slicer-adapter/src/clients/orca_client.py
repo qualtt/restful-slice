@@ -29,6 +29,16 @@ def _body_looks_like_gcode(body: bytes) -> bool:
     return False
 
 
+def _model_mime(stl_path: str) -> str:
+    ext = os.path.splitext(stl_path)[1].lower()
+    return {
+        ".stl": "model/stl",
+        ".3mf": "model/3mf",
+        ".step": "model/step",
+        ".stp": "model/step",
+    }.get(ext, "application/octet-stream")
+
+
 class OrcaSlicerClient:
     def __init__(self, settings: _SettingsLike) -> None:
         self._base = settings.orca_api_url.rstrip("/")
@@ -47,7 +57,7 @@ class OrcaSlicerClient:
             files: list[tuple[str, tuple[str, BinaryIO, str]]] = [
                 (
                     "file",
-                    (os.path.basename(stl_path), stl_fh, "application/octet-stream"),
+                    (os.path.basename(stl_path), stl_fh, _model_mime(stl_path)),
                 )
             ]
             for field_name, path in profile_paths.items():

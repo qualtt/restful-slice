@@ -1,4 +1,5 @@
 import logging
+import json
 import shutil
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -52,9 +53,30 @@ def process_slicing_task(event_json: str) -> None:
 
     try:
         job = SliceRequestedEvent.model_validate_json(event_json)
-    except ValidationError:
+    except ValidationError as exc:
         logger.exception("Invalid slice.requested payload")
-        raise
+        order_id = None
+        try:
+            raw = json.loads(event_json)
+            order_id = raw.get("payload", {}).get("order_id")
+        except Exception:
+            pass
+        if order_id:
+            failed = SliceFailedEvent(
+                event_id=uuid4(),
+                event_type="slice.failed",
+                created_at=datetime.now(timezone.utc),
+                source=settings.service_name,
+                spec_version=settings.event_spec_version,
+                payload=SliceFailedPayload(
+                    order_id=order_id,
+                    error_code="INVALID_PAYLOAD",
+                    error_message=str(exc)[:4000],
+                    retryable=False,
+                ),
+            )
+            publish_event_with_retries(RESULTS_QUEUE, failed)
+        return
 
     tmp = f"/temp/{uuid4()}"
     try:

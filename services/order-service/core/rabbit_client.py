@@ -22,10 +22,6 @@ def publish_slice_requested(
     profile_id: int,
 ) -> None:
     settings = get_settings()
-    # Orca slicer-api expects printer/process/filament profiles as MinIO paths.
-    # We pass the same STL key as a placeholder for profiles — the slicer_api
-    # resolves actual profiles internally by profileId embedded in the STL key path.
-    # Real profile paths would come from inventory; for now we embed profileId in metadata.
     event = {
         "event_id": str(uuid4()),
         "event_type": "slice.requested",
@@ -36,7 +32,6 @@ def publish_slice_requested(
             "order_id": order_id,
             "customer_id": "00000000-0000-0000-0000-000000000000",
             "priority": "normal",
-            "profile_id": profile_id,
             "minio_paths": {
                 "stl_file": file_object_key,
                 "printer_profile": f"profiles/{profile_id}/printer.json",

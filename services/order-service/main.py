@@ -1,6 +1,5 @@
 import json
 import logging
-import threading
 from contextlib import asynccontextmanager
 
 import httpx
@@ -158,13 +157,19 @@ class OrderListResponse(BaseModel):
 
 @router.post("/files", response_model=UploadedFileResponse, status_code=201)
 async def upload_stl_file(file: UploadFile = File(...)):
-    if not file.filename.lower().endswith(".stl") and file.content_type not in [
+    name_lower = (file.filename or "").lower()
+    allowed_exts = (".stl", ".3mf", ".step", ".stp")
+    allowed_mimes = {
         "model/stl",
+        "model/3mf",
+        "model/step",
+        "application/step",
         "application/octet-stream",
-    ]:
+    }
+    if not name_lower.endswith(allowed_exts) and file.content_type not in allowed_mimes:
         return JSONResponse(
             status_code=400,
-            content={"code": "INVALID_FILE_TYPE", "message": "Only STL files are accepted"},
+            content={"code": "INVALID_FILE_TYPE", "message": "Only STL, 3MF, or STEP files are accepted"},
         )
 
     data = await file.read()

@@ -107,20 +107,20 @@ MATERIALS_DB = [
     },
     {
         "materialId": 2,
-        "label": "Esun ABS Black 1kg",
-        "materialType": "ABS",
+        "label": "Creality Generic PETG Black 1kg",
+        "materialType": "PETG",
         "remainingGrams": 1500.0,
         "costPerGram": {"amount": "0.18", "currency": "RUB"},
         "isActive": True,
-        "description": "Strong ABS, black",
+        "description": "Creality Generic PETG, black",
     },
 ]
 
 PRINTERS_DB = {
     1: {
         "printerId": 1,
-        "modelName": "Creality Ender 3 V2",
-        "orcaPrinterId": "creality_ender3v2",
+        "modelName": "Creality K1C",
+        "orcaPrinterId": "creality_k1c_0.4_nozzle",
     }
 }
 
@@ -128,20 +128,20 @@ PROCESS_DB = {
     1: {
         "processId": 1,
         "name": "0.20mm Standard",
-        "orcaProcessId": "fdm_process_0.20mm_standard",
+        "orcaProcessId": "0.20mm_standard_creality_k1c_0.4_nozzle",
     }
 }
 
 PROFILES_DB = [
     {
         "profileId": 3,
-        "displayName": "PLA Стандарт (Ender 3)",
+        "displayName": "PETG Стандарт (K1C)",
         "printer": PRINTERS_DB[1],
-        "material": MATERIALS_DB[0],
+        "material": MATERIALS_DB[1],
         "process": PROCESS_DB[1],
         "markupPercent": 1.2,
         "isEnabled": True,
-        "description": "Стандартный профиль для прототипов",
+        "description": "Стандартный профиль для прототипов на Creality K1C",
     }
 ]
 

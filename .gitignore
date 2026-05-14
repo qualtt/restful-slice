@@ -24,3 +24,7 @@ e.yml
 # Секретница реализована
 infra/sops/keys.txt
 .env
+
+# Локальные тестовые данные (не для репо — заливаются в MinIO отдельно)
+.fixtures-cache/
+presets/
