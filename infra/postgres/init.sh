@@ -22,7 +22,8 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "orders_db" <<-EOSQ
         file_id UUID PRIMARY KEY,
         filename TEXT NOT NULL,
         size_bytes BIGINT NOT NULL,
-        uploaded_at TIMESTAMPTZ NOT NULL
+        uploaded_at TIMESTAMPTZ NOT NULL,
+        object_key TEXT
     );
 
     CREATE TABLE IF NOT EXISTS orders (

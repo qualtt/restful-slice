@@ -58,10 +58,13 @@ class OrderManager:
             "filename": filename,
             "sizeBytes": size_bytes,
             "uploadedAt": now,
+            "objectKey": None,
         }
-        # INSERT INTO files ...
         self.db.insert("files", file_id, file_data)
         return file_data
+
+    def save_file_object_key(self, file_id: str, object_key: str) -> None:
+        self.db.update("files", file_id, {"objectKey": object_key})
 
     def get_file(self, file_id: str) -> dict:
         # SELECT * FROM files WHERE id = ...

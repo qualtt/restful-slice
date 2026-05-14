@@ -44,6 +44,7 @@ class PostgresDB:
             "filename": row["filename"],
             "sizeBytes": row["size_bytes"],
             "uploadedAt": row["uploaded_at"].isoformat(),
+            "objectKey": row.get("object_key"),
         }
 
     def insert(self, table: str, record_id: str, data: dict[str, Any]):
@@ -52,18 +53,20 @@ class PostgresDB:
                 if table == "files":
                     cur.execute(
                         """
-                        INSERT INTO files (file_id, filename, size_bytes, uploaded_at)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO files (file_id, filename, size_bytes, uploaded_at, object_key)
+                        VALUES (%s, %s, %s, %s, %s)
                         ON CONFLICT (file_id) DO UPDATE
                         SET filename = EXCLUDED.filename,
                             size_bytes = EXCLUDED.size_bytes,
-                            uploaded_at = EXCLUDED.uploaded_at
+                            uploaded_at = EXCLUDED.uploaded_at,
+                            object_key = EXCLUDED.object_key
                         """,
                         (
                             record_id,
                             data["filename"],
                             data["sizeBytes"],
                             data["uploadedAt"],
+                            data.get("objectKey"),
                         ),
                     )
                     return
@@ -106,7 +109,7 @@ class PostgresDB:
             with conn.cursor() as cur:
                 if table == "files":
                     cur.execute(
-                        "SELECT file_id, filename, size_bytes, uploaded_at FROM files WHERE file_id = %s",
+                        "SELECT file_id, filename, size_bytes, uploaded_at, object_key FROM files WHERE file_id = %s",
                         (record_id,),
                     )
                     return self._map_file_row(cur.fetchone())
@@ -139,13 +142,23 @@ class PostgresDB:
 
                 if table == "files":
                     cur.execute(
-                        "SELECT file_id, filename, size_bytes, uploaded_at FROM files ORDER BY uploaded_at DESC"
+                        "SELECT file_id, filename, size_bytes, uploaded_at, object_key FROM files ORDER BY uploaded_at DESC"
                     )
                     return [self._map_file_row(row) for row in cur.fetchall()]
 
                 raise ValueError(f"Unsupported table: {table}")
 
     def update(self, table: str, record_id: str, updates: dict[str, Any]):
+        if table == "files":
+            if "objectKey" in updates:
+                with self._connect() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "UPDATE files SET object_key = %s WHERE file_id = %s",
+                            (updates["objectKey"], record_id),
+                        )
+            return
+
         if table != "orders":
             raise ValueError(f"Unsupported table for update: {table}")
 
