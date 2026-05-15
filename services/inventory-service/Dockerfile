@@ -18,7 +18,7 @@ FROM base AS development
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 EXPOSE 8081
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8081", "--reload"]
+CMD sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8081 --reload"
 
 # --- Этап 3: Продакшен (Production) ---
 FROM base AS production
@@ -30,4 +30,4 @@ COPY . /app/
 
 USER appuser
 EXPOSE 8081
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8081"]
+CMD sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8081"
