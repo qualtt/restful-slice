@@ -113,6 +113,14 @@ jobs:
       - name: Set lower case owner name
         run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
 
+      # --- СБОРКА И ПУШ СВОЕГО POSTGRES ---
+      - name: Build Postgres image
+        run: docker build -t ghcr.io/${{ env.REPO_LC }}/postgres:latest ./infra/postgres
+
+      - name: Push Postgres image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker push ghcr.io/${{ env.REPO_LC }}/postgres:latest
+
       # --- СБОРКА И ПРОВЕРКА ORDER SERVICE ---
       - name: Build Order Service image
         # ВАЖНО: Указываем --target production для многоэтапной сборки
