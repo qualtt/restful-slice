@@ -9,7 +9,7 @@ services:
     volumes:
       - prometheus_data:/prometheus
     configs:
-      - source: prom_config_v1
+      - source: prom_config_v2
         target: /etc/prometheus/prometheus.yml
     networks:
       - monitoring_net
@@ -95,7 +95,7 @@ volumes:
   grafana_data:
 
 configs:
-  prom_config_v1:
+  prom_config_v2:
     file: ./prometheus.yml
   loki_config_v1:
     file: ./loki.yml
