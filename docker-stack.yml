@@ -2,8 +2,8 @@ version: '3.8'
 
 services:
   postgres:
-    # Берем образ из Docker Hub
-    image: postgres:15-alpine
+    # Берем собственный образ с вшитым init.sh из GitHub Registry
+    image: ghcr.io/qualtt/restful-slice/postgres:latest
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -14,9 +14,6 @@ services:
       INV_DB_PASSWORD: ${INV_DB_PASSWORD}
     volumes:
       - pg_data:/var/lib/postgresql/data
-    configs:
-      - source: postgres_init
-        target: /docker-entrypoint-initdb.d/init.sh
     networks:
       - backend_net
     deploy:
@@ -100,6 +97,12 @@ services:
       placement:
         constraints:
           - node.labels.zone == compute # Только на домашних воркерах!
+        preferences:
+          - spread: node.id # Равномерно распределяем по воркерам
+      resources:
+        reservations:
+          cpus: '0.6'
+          memory: 600MB
 
   slicer_adapter:
     image: ghcr.io/qualtt/restful-slice/slicer-adapter:latest
@@ -120,6 +123,8 @@ services:
       placement:
         constraints:
           - node.labels.zone == compute
+        preferences:
+          - spread: node.id
 
   gateway:
     image: owasp/modsecurity-crs:nginx-alpine
