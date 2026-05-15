@@ -209,3 +209,4 @@ jobs:
 
           # Запускаем деплой (он подхватит переменные, так как они в export)
           docker stack deploy --with-registry-auth -c docker-stack.yml restful-slice
+          cd infra/monitoring && docker stack deploy -c docker-stack-monitor.yml monitoring

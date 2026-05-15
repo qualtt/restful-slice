@@ -152,7 +152,3 @@ volumes:
   pg_data:
   minio_data:
   slicer_data:
-
-configs:
-  postgres_init:
-    file: ./infra/postgres/init.sh

@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - prometheus_data:/prometheus
+    configs:
+      - source: prom_config_v1
+        target: /etc/prometheus/prometheus.yml
+    networks:
+      - monitoring_net
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  loki:
+    image: grafana/loki:2.9.2
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+    configs:
+      - source: loki_config_v1
+        target: /etc/loki/local-config.yaml
+    networks:
+      - monitoring_net
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring_net
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+    networks:
+      - monitoring_net
+    deploy:
+      mode: global # ЗАПУСКАЕТСЯ НА КАЖДОМ ИЗ 5 СЕРВЕРОВ!
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - monitoring_net
+    deploy:
+      mode: global # ЗАПУСКАЕТСЯ НА КАЖДОМ ИЗ 5 СЕРВЕРОВ!
+
+  promtail:
+    image: grafana/promtail:2.9.2
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    configs:
+      - source: promtail_config_v1
+        target: /etc/promtail/promtail-config.yaml
+    networks:
+      - monitoring_net
+    deploy:
+      mode: global # ЗАПУСКАЕТСЯ НА КАЖДОМ ИЗ 5 СЕРВЕРОВ!
+
+networks:
+  monitoring_net:
+    driver: overlay
+
+volumes:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+
+configs:
+  prom_config_v1:
+    file: ./prometheus.yml
+  loki_config_v1:
+    file: ./loki.yml
+  promtail_config_v1:
+    file: ./promtail.yml
