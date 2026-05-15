@@ -1,0 +1,1289 @@
+{
+  "info": {
+    "_postman_id": "4ab4d5d8-1a15-4f70-9d38-c7ebf48e0e88",
+    "name": "restful-slice OpenAPI Contract",
+    "description": "Contract-oriented API coverage for the public OpenAPI surface. The collection is grouped by resource area and keeps the happy-path end-to-end flow in a dedicated folder.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{apiKey}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Inventory",
+      "item": [
+        {
+          "name": "List profiles",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('List profiles returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Profiles response contains data and meta', function () {",
+                  "  pm.expect(body.data).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(body.meta).to.be.an('object');",
+                  "  pm.expect(body.meta.page).to.eql(1);",
+                  "  pm.expect(body.meta.pageSize).to.eql(20);",
+                  "});",
+                  "const profile = body.data[0];",
+                  "pm.test('Profile shape matches contract', function () {",
+                  "  pm.expect(profile).to.have.property('profileId');",
+                  "  pm.expect(profile).to.have.property('displayName');",
+                  "  pm.expect(profile).to.have.property('printer');",
+                  "  pm.expect(profile).to.have.property('material');",
+                  "  pm.expect(profile).to.have.property('process');",
+                  "  pm.expect(profile).to.have.property('markupPercent');",
+                  "  pm.expect(profile).to.have.property('isEnabled');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/profiles?page=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "profiles"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Filter profiles by materialType",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Filtered profiles returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Filtered profiles keep PETG only', function () {",
+                  "  pm.expect(body.data).to.be.an('array');",
+                  "  body.data.forEach((profile) => {",
+                  "    pm.expect(profile.material.materialType).to.eql('PETG');",
+                  "    pm.expect(profile.isEnabled).to.eql(true);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/profiles?page=1&pageSize=20&materialType=PETG&isEnabled=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "profiles"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                },
+                {
+                  "key": "materialType",
+                  "value": "PETG"
+                },
+                {
+                  "key": "isEnabled",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get existing profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Get profile returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Requested profile matches environment value', function () {",
+                  "  pm.expect(body.profileId).to.eql(Number(pm.environment.get('profileId')));",
+                  "});",
+                  "pm.environment.set('materialId', String(body.material.materialId));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/profiles/{{profileId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "profiles",
+                "{{profileId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get missing profile returns 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Missing profile returns 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Missing profile payload contains NOT_FOUND', function () {",
+                  "  pm.expect(body.code).to.eql('NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/profiles/{{missingProfileId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "profiles",
+                "{{missingProfileId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List materials",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('List materials returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Materials response contains data and meta', function () {",
+                  "  pm.expect(body.data).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(body.meta.page).to.eql(1);",
+                  "  pm.expect(body.meta.pageSize).to.eql(20);",
+                  "});",
+                  "const material = body.data[0];",
+                  "pm.test('Material shape matches contract', function () {",
+                  "  pm.expect(material).to.have.property('materialId');",
+                  "  pm.expect(material).to.have.property('label');",
+                  "  pm.expect(material).to.have.property('materialType');",
+                  "  pm.expect(material).to.have.property('remainingGrams');",
+                  "  pm.expect(material).to.have.property('costPerGram');",
+                  "  pm.expect(material).to.have.property('isActive');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/materials?page=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "materials"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Filter materials by type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Filtered materials returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Filtered materials keep PETG only', function () {",
+                  "  pm.expect(body.data).to.be.an('array');",
+                  "  body.data.forEach((material) => {",
+                  "    pm.expect(material.materialType).to.eql('PETG');",
+                  "    pm.expect(material.isActive).to.eql(true);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/materials?page=1&pageSize=20&type=PETG&isActive=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "materials"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                },
+                {
+                  "key": "type",
+                  "value": "PETG"
+                },
+                {
+                  "key": "isActive",
+                  "value": "true"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get existing material",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Get material returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Requested material matches environment value', function () {",
+                  "  pm.expect(body.materialId).to.eql(Number(pm.environment.get('materialId')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/materials/{{materialId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "materials",
+                "{{materialId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get missing material returns 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Missing material returns 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Missing material payload contains NOT_FOUND', function () {",
+                  "  pm.expect(body.code).to.eql('NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/materials/{{missingMaterialId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "materials",
+                "{{missingMaterialId}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Orders - Upload",
+      "item": [
+        {
+          "name": "Upload valid model",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Upload returns 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('uploadFileId', body.fileId);",
+                  "pm.test('Upload response contains file metadata', function () {",
+                  "  pm.expect(body.fileId).to.match(/^[0-9a-fA-F-]{36}$/);",
+                  "  pm.expect(body.filename).to.eql('cube.stl');",
+                  "  pm.expect(body.sizeBytes).to.be.above(0);",
+                  "  pm.expect(body.uploadedAt).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{sampleModelPath}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/files",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "files"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reject invalid upload type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invalid upload returns 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Invalid upload returns INVALID_FILE_TYPE', function () {",
+                  "  pm.expect(body.code).to.eql('INVALID_FILE_TYPE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{invalidFilePath}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/files",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "files"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Orders - Lifecycle",
+      "item": [
+        {
+          "name": "Upload model for lifecycle",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lifecycle upload returns 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('lifecycleFileId', body.fileId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{sampleModelPath}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/files",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "files"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create order returns 202', function () {",
+                  "  pm.response.to.have.status(202);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('lifecycleOrderId', body.orderId);",
+                  "pm.test('Create order returns slicing state', function () {",
+                  "  pm.expect(body.orderId).to.match(/^[0-9a-fA-F-]{36}$/);",
+                  "  pm.expect(body.fileId).to.eql(pm.environment.get('lifecycleFileId'));",
+                  "  pm.expect(body.profileId).to.eql(Number(pm.environment.get('profileId')));",
+                  "  pm.expect(body.status).to.eql('slicing');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": \"{{lifecycleFileId}}\",\n  \"profileId\": {{profileId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get created order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Get order returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Fetched order matches created order', function () {",
+                  "  pm.expect(body.orderId).to.eql(pm.environment.get('lifecycleOrderId'));",
+                  "  pm.expect(body.fileId).to.eql(pm.environment.get('lifecycleFileId'));",
+                  "  pm.expect(body).to.have.property('status');",
+                  "  pm.expect(body).to.have.property('createdAt');",
+                  "  pm.expect(body).to.have.property('updatedAt');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{lifecycleOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{lifecycleOrderId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List all orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('List orders returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('List orders contains created order', function () {",
+                  "  pm.expect(body.data.some((order) => order.orderId === pm.environment.get('lifecycleOrderId'))).to.be.true;",
+                  "  pm.expect(body.meta).to.be.an('object');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?page=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cancel order returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('cancelledOrderId', body.orderId);",
+                  "pm.test('Order moves to cancelled', function () {",
+                  "  pm.expect(body.status).to.eql('cancelled');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{lifecycleOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{lifecycleOrderId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get cancelled order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Get cancelled order returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Cancelled order stays cancelled', function () {",
+                  "  pm.expect(body.orderId).to.eql(pm.environment.get('cancelledOrderId'));",
+                  "  pm.expect(body.status).to.eql('cancelled');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{cancelledOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{cancelledOrderId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel cancelled order returns 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cancelling a cancelled order returns 409', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('409 payload contains ORDER_NOT_CANCELLABLE', function () {",
+                  "  pm.expect(body.code).to.eql('ORDER_NOT_CANCELLABLE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{cancelledOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{cancelledOrderId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List cancelled orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Filtered cancelled orders returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Cancelled orders list contains the cancelled order', function () {",
+                  "  pm.expect(body.data.some((order) => order.orderId === pm.environment.get('cancelledOrderId'))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?page=1&pageSize=20&status=cancelled",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "cancelled"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Orders - Errors",
+      "item": [
+        {
+          "name": "Create order with missing file returns 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unknown fileId returns 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('404 payload contains FILE_NOT_FOUND', function () {",
+                  "  pm.expect(body.code).to.eql('FILE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": \"{{missingFileId}}\",\n  \"profileId\": {{profileId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create order with invalid payload returns 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invalid create payload returns 422', function () {",
+                  "  pm.response.to.have.status(422);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('422 payload contains validation detail array', function () {",
+                  "  pm.expect(body.detail).to.be.an('array').that.is.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"profileId\": \"oops\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get missing order returns 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Missing order returns 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('404 payload contains NOT_FOUND', function () {",
+                  "  pm.expect(body.code).to.eql('NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{missingOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{missingOrderId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel missing order returns 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cancelling a missing order returns 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('404 payload contains NOT_FOUND', function () {",
+                  "  pm.expect(body.code).to.eql('NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{missingOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{missingOrderId}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Happy path E2E",
+      "item": [
+        {
+          "name": "Upload model for happy path",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Happy path upload returns 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('happyFileId', body.fileId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{sampleModelPath}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/files",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "files"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create order for happy path",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Happy path create returns 202', function () {",
+                  "  pm.response.to.have.status(202);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('happyOrderId', body.orderId);",
+                  "pm.environment.set('happyPollAttempt', '0');",
+                  "pm.environment.unset('happyTerminalStatus');",
+                  "pm.environment.unset('happyErrorMessage');",
+                  "pm.test('Happy path order starts in slicing', function () {",
+                  "  pm.expect(body.status).to.eql('slicing');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": \"{{happyFileId}}\",\n  \"profileId\": {{profileId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Poll order until priced",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Polling request returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "const status = body.status;",
+                  "const attempts = Number(pm.environment.get('happyPollAttempt') || '0') + 1;",
+                  "const maxAttempts = Number(pm.environment.get('maxPollAttempts') || '30');",
+                  "pm.environment.set('happyPollAttempt', String(attempts));",
+                  "pm.environment.set('happyLastStatus', status);",
+                  "if (status === 'priced') {",
+                  "  pm.environment.set('happyTerminalStatus', status);",
+                  "  pm.execution.setNextRequest('Get priced order');",
+                  "} else if (status === 'failed') {",
+                  "  const errorMessage = body.errorMessage || 'Unknown slicing failure';",
+                  "  pm.environment.set('happyTerminalStatus', status);",
+                  "  pm.environment.set('happyErrorMessage', errorMessage);",
+                  "  pm.test('Happy path should not fail', function () {",
+                  "    pm.expect.fail('Order failed: ' + errorMessage);",
+                  "  });",
+                  "  pm.execution.setNextRequest(null);",
+                  "} else if (attempts < maxAttempts) {",
+                  "  pm.execution.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.test('Order reaches priced before timeout', function () {",
+                  "    pm.expect.fail(\"Order is still '\" + status + \"' after \" + attempts + \" polling attempts.\");",
+                  "  });",
+                  "  pm.execution.setNextRequest(null);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{happyOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{happyOrderId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get priced order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Priced order fetch returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Priced order contains slicingResult', function () {",
+                  "  pm.expect(body.orderId).to.eql(pm.environment.get('happyOrderId'));",
+                  "  pm.expect(body.status).to.eql('priced');",
+                  "  pm.expect(body.slicingResult).to.be.an('object');",
+                  "  pm.expect(body.slicingResult.weightGrams).to.be.above(0);",
+                  "  pm.expect(body.slicingResult.printTimeSeconds).to.be.above(0);",
+                  "  pm.expect(body.slicingResult.price.amount).to.match(/^\\d+(\\.\\d{2})$/);",
+                  "  pm.expect(body.slicingResult.price.currency).to.eql('RUB');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{happyOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{happyOrderId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List priced orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Priced orders list returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Priced orders list contains the happy-path order', function () {",
+                  "  pm.expect(body.data.some((order) => order.orderId === pm.environment.get('happyOrderId'))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?page=1&pageSize=20&status=priced",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "priced"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
