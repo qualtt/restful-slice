@@ -1,0 +1,496 @@
+{
+  "info": {
+    "_postman_id": "9c49eb0b-6b25-4d2b-8ef7-8c2d4d7191f6",
+    "name": "restful-slice API E2E",
+    "description": "Smoke and happy-path API checks for the local docker-compose stack.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{apiKey}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Happy path",
+      "item": [
+        {
+          "name": "List print profiles",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Inventory profiles request returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Profiles payload contains data array', function () {",
+                  "  pm.expect(body).to.have.property('data');",
+                  "  pm.expect(body.data).to.be.an('array').that.is.not.empty;",
+                  "});",
+                  "const requestedProfileId = Number(pm.environment.get('profileId'));",
+                  "pm.test('Requested profile exists in inventory', function () {",
+                  "  pm.expect(body.data.some((profile) => profile.profileId === requestedProfileId)).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/profiles?page=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "profiles"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload sample model",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Model upload returns 201', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('fileId', body.fileId);",
+                  "pm.environment.set('uploadedFilename', body.filename);",
+                  "pm.test('Upload response contains fileId', function () {",
+                  "  pm.expect(body.fileId).to.match(/^[0-9a-fA-F-]{36}$/);",
+                  "});",
+                  "pm.test('Uploaded file name matches fixture', function () {",
+                  "  pm.expect(body.filename).to.eql('cube.stl');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{sampleModelPath}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/files",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "files"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Create order returns 202', function () {",
+                  "  pm.response.to.have.status(202);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('orderId', body.orderId);",
+                  "pm.environment.set('pollAttempt', '0');",
+                  "pm.environment.unset('terminalStatus');",
+                  "pm.environment.unset('errorMessage');",
+                  "pm.test('Order enters slicing pipeline', function () {",
+                  "  pm.expect(body.status).to.eql('slicing');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": \"{{fileId}}\",\n  \"profileId\": {{profileId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Poll order until priced",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Polling request returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "const status = body.status;",
+                  "const attempts = Number(pm.environment.get('pollAttempt') || '0') + 1;",
+                  "const maxAttempts = Number(pm.environment.get('maxPollAttempts') || '30');",
+                  "pm.environment.set('pollAttempt', String(attempts));",
+                  "pm.environment.set('lastOrderStatus', status);",
+                  "if (status === 'priced') {",
+                  "  pm.environment.set('terminalStatus', status);",
+                  "  pm.test('Order reaches priced terminal state', function () {",
+                  "    pm.expect(body.slicingResult).to.be.an('object');",
+                  "    pm.expect(body.slicingResult.weightGrams).to.be.above(0);",
+                  "    pm.expect(body.slicingResult.printTimeSeconds).to.be.above(0);",
+                  "    pm.expect(body.slicingResult.price.amount).to.match(/^\\d+(\\.\\d{2})$/);",
+                  "    pm.expect(body.slicingResult.price.currency).to.eql('RUB');",
+                  "  });",
+                  "  postman.setNextRequest('Fetch priced order');",
+                  "} else if (status === 'failed') {",
+                  "  const errorMessage = body.errorMessage || 'Unknown slicing failure';",
+                  "  pm.environment.set('terminalStatus', status);",
+                  "  pm.environment.set('errorMessage', errorMessage);",
+                  "  pm.test('Order should not fail during slicing', function () {",
+                  "    pm.expect.fail('Order failed: ' + errorMessage);",
+                  "  });",
+                  "  postman.setNextRequest(null);",
+                  "} else if (attempts < maxAttempts) {",
+                  "  postman.setNextRequest(pm.info.requestName);",
+                  "} else {",
+                  "  pm.test('Order reaches terminal state before timeout', function () {",
+                  "    pm.expect.fail(\"Order is still '\" + status + \"' after \" + attempts + \" polling attempts. Increase maxPollAttempts or runner delay.\");",
+                  "  });",
+                  "  postman.setNextRequest(null);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Fetch priced order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Final order fetch returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Fetched order matches created order', function () {",
+                  "  pm.expect(body.orderId).to.eql(pm.environment.get('orderId'));",
+                  "  pm.expect(body.fileId).to.eql(pm.environment.get('fileId'));",
+                  "});",
+                  "pm.test('Fetched order stays priced', function () {",
+                  "  pm.expect(body.status).to.eql('priced');",
+                  "  pm.expect(body.slicingResult.weightGrams).to.be.above(0);",
+                  "  pm.expect(body.slicingResult.printTimeSeconds).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List priced orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Orders list returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Orders list contains the created order', function () {",
+                  "  pm.expect(body.data.some((order) => order.orderId === pm.environment.get('orderId'))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?page=1&pageSize=20&status=priced",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "priced"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Negative smoke",
+      "item": [
+        {
+          "name": "Reject invalid upload type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invalid upload returns 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Upload is rejected with INVALID_FILE_TYPE', function () {",
+                  "  pm.expect(body.code).to.eql('INVALID_FILE_TYPE');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "{{invalidFilePath}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/files",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "files"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get missing order returns 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Missing order returns 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Missing order payload contains NOT_FOUND', function () {",
+                  "  pm.expect(body.code).to.eql('NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{missingOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{missingOrderId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create order with missing file returns 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unknown fileId returns 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('Unknown fileId payload contains FILE_NOT_FOUND', function () {",
+                  "  pm.expect(body.code).to.eql('FILE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": \"{{missingFileId}}\",\n  \"profileId\": {{profileId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

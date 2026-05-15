@@ -1,0 +1,2 @@
+This is intentionally not a 3D model.
+The upload endpoint should reject it with INVALID_FILE_TYPE.
