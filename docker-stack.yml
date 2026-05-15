@@ -143,10 +143,16 @@ services:
 networks:
   backend_net:
     driver: overlay
+    driver_opts:
+      com.docker.network.driver.mtu: "1200"
   public_net:
     driver: overlay
+    driver_opts:
+      com.docker.network.driver.mtu: "1200"
   slicer_internal_net:
     driver: overlay
+    driver_opts:
+      com.docker.network.driver.mtu: "1200"
 
 volumes:
   pg_data:

@@ -11,8 +11,6 @@ services:
     configs:
       - source: prom_config_v2
         target: /etc/prometheus/prometheus.yml
-    ports:
-      - "9090:9090"
     networks:
       - monitoring_net
     deploy:
@@ -58,20 +56,23 @@ services:
     networks:
       - monitoring_net
     deploy:
-      mode: global # ЗАПУСКАЕТСЯ НА КАЖДОМ ИЗ 5 СЕРВЕРОВ!
+      mode: global
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    image: gcr.io/cadvisor/cadvisor:v0.49.2 # Обновлено на стабильную новую версию
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
+    command:
+      - '--docker_only=true'          # Больше не будет лезть в /system.slice и крашиться
+      - '--housekeeping_interval=15s' # Снижаем нагрузку на CPU
     networks:
       - monitoring_net
     deploy:
-      mode: global # ЗАПУСКАЕТСЯ НА КАЖДОМ ИЗ 5 СЕРВЕРОВ!
+      mode: global
 
   promtail:
     image: grafana/promtail:2.9.2
@@ -85,11 +86,13 @@ services:
     networks:
       - monitoring_net
     deploy:
-      mode: global # ЗАПУСКАЕТСЯ НА КАЖДОМ ИЗ 5 СЕРВЕРОВ!
+      mode: global
 
 networks:
   monitoring_net:
     driver: overlay
+    driver_opts:
+      com.docker.network.driver.mtu: "1200" # СПАСАЕТ ОТ КОНФЛИКТА С NETBIRD
 
 volumes:
   prometheus_data:
