@@ -16,6 +16,17 @@ from core.rabbit_client import publish_slice_requested, start_results_consumer
 logger = logging.getLogger(__name__)
 
 
+def fail_order(order_id: str, error_message: str) -> None:
+    try:
+        order_db.update_status(
+            order_id,
+            OrderStatus.FAILED.value,
+            error_message=error_message,
+        )
+    except Exception:
+        logger.exception("Failed to update order %s to FAILED", order_id)
+
+
 def handle_slicing_result(event_json: str) -> None:
     data = json.loads(event_json)
     event_type = data.get("event_type")
@@ -48,9 +59,16 @@ def handle_slicing_result(event_json: str) -> None:
                 if resp.status_code == 200:
                     price = resp.json().get("price", price)
                 else:
-                    logger.warning("Inventory reserve returned %s: %s", resp.status_code, resp.text)
-            except Exception:
+                    error_message = (
+                        f"Inventory reserve failed with {resp.status_code}: {resp.text}"
+                    )
+                    logger.warning(error_message)
+                    fail_order(order_id, error_message)
+                    return
+            except Exception as exc:
                 logger.exception("Failed to call inventory reserve for order %s", order_id)
+                fail_order(order_id, f"Inventory reserve failed: {exc}")
+                return
 
         order_db.update_status(
             order_id,
@@ -64,10 +82,7 @@ def handle_slicing_result(event_json: str) -> None:
 
     elif event_type == "slice.failed":
         error_msg = payload.get("error_message", "Slicing failed")
-        try:
-            order_db.update_status(order_id, OrderStatus.FAILED.value, error_message=error_msg)
-        except Exception:
-            logger.exception("Failed to update order %s to FAILED", order_id)
+        fail_order(order_id, error_msg)
 
 
 @asynccontextmanager
