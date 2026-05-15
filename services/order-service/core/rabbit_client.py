@@ -58,8 +58,8 @@ def publish_slice_requested(
     finally:
         try:
             connection.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to close RabbitMQ connection: %s", e)
 
 
 def start_results_consumer(callback: Callable[[str], None]) -> None:
