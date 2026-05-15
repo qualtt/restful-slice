@@ -360,11 +360,12 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: docker push ghcr.io/${{ env.REPO_LC }}/slicer-adapter:latest
 
-  # 5. Deploy step: на домашнем сервере (АДАПТИРОВАНО ПОД SWARM)
+
+  # 4. Deploy step: на домашнем сервере (АДАПТИРОВАНО ПОД SWARM)
   deploy:
     name: Deploy to Swarm Cluster
     runs-on: self-hosted
-    needs: build_i_sca
+    # needs: build_i_sca
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
