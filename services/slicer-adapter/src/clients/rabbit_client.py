@@ -120,30 +120,40 @@ def publish_event_with_retries(
 
 def start_consuming(queue_name: str, callback: Callable[[str], None]) -> None:
     settings = get_settings()
-    params = pika.URLParameters(settings.amqp_url)
-    connection = pika.BlockingConnection(params)
-    channel = connection.channel()
-    channel.queue_declare(queue=queue_name, durable=True)
-    channel.basic_qos(prefetch_count=1)
-
-    def _on_message(
-        ch: pika.channel.Channel,
-        method: pika.spec.Basic.Deliver,
-        _properties: pika.spec.BasicProperties,
-        body: bytes,
-    ) -> None:
+    while True:
+        connection: pika.BlockingConnection | None = None
         try:
-            callback(body.decode("utf-8"))
+            params = pika.URLParameters(settings.amqp_url)
+            connection = pika.BlockingConnection(params)
+            channel = connection.channel()
+            channel.queue_declare(queue=queue_name, durable=True)
+            channel.basic_qos(prefetch_count=1)
+
+            def _on_message(
+                ch: pika.channel.Channel,
+                method: pika.spec.Basic.Deliver,
+                _properties: pika.spec.BasicProperties,
+                body: bytes,
+            ) -> None:
+                handle_consumer_message(ch, method, body, callback)
+
+            channel.basic_consume(
+                queue=queue_name, on_message_callback=_on_message, auto_ack=False
+            )
+            logger.info("Consuming queue %s", queue_name)
+            channel.start_consuming()
         except Exception:
             logger.exception(
-                "Fatal error while handling message; rejecting without requeue"
+                "RabbitMQ consumer crashed for queue %s, retrying in 5s",
+                queue_name,
             )
-            ch.basic_reject(delivery_tag=method.delivery_tag, requeue=False)
-            return
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-
-    channel.basic_consume(
-        queue=queue_name, on_message_callback=_on_message, auto_ack=False
-    )
-    logger.info("Consuming queue %s", queue_name)
-    channel.start_consuming()
+            time.sleep(5)
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    logger.debug(
+                        "Failed to close RabbitMQ connection after consumer loop",
+                        exc_info=True,
+                    )
