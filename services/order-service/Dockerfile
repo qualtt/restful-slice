@@ -20,7 +20,7 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 EXPOSE 8080
 # Код прокидывается через volume из docker-compose.override.yml
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+CMD sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
 
 # --- Этап 3: Продакшен (Production) ---
 FROM base AS production
@@ -38,4 +38,4 @@ COPY . /app/
 # Переключаемся на бесправного пользователя
 USER appuser
 EXPOSE 8080
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8080"

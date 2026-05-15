@@ -101,6 +101,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 router = APIRouter(prefix="/api/orders", tags=["Orders"])
+telemetry_router = APIRouter(prefix="/api/telemetry", tags=["Telemetry"])
 order_db = OrderManager()
 
 
@@ -153,6 +154,22 @@ class OrderResponse(BaseModel):
 class OrderListResponse(BaseModel):
     data: List[OrderResponse]
     meta: PaginationMeta
+
+
+class TelemetryEvent(BaseModel):
+    id: str
+    name: str
+    ts: str
+    sessionId: str
+    route: str
+    consentVersion: str
+    context: Dict[str, Any]
+    data: Dict[str, Any]
+
+
+class TelemetryBatchRequest(BaseModel):
+    source: str
+    events: List[TelemetryEvent]
 
 
 @router.post("/files", response_model=UploadedFileResponse, status_code=201)
@@ -260,4 +277,30 @@ async def cancel_order(orderId: UUID4):
         return JSONResponse(status_code=404, content={"code": "NOT_FOUND", "message": "Resource not found"})
 
 
+@telemetry_router.post("/events", status_code=202)
+async def receive_telemetry_events(payload: TelemetryBatchRequest):
+    from core.database import db_stub
+    
+    for event in payload.events:
+        try:
+            db_stub.insert(
+                table="telemetry_events",
+                record_id=event.id,
+                data={
+                    "session_id": event.sessionId,
+                    "event_name": event.name,
+                    "route": event.route,
+                    "consent_version": event.consentVersion,
+                    "context": event.context,
+                    "data": event.data,
+                    "client_ts": event.ts,
+                }
+            )
+        except Exception:
+            logger.exception("Failed to insert telemetry event %s", event.id)
+            
+    return {"status": "accepted", "processed": len(payload.events)}
+
+
 app.include_router(router)
+app.include_router(telemetry_router)

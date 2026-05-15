@@ -59,8 +59,8 @@ def process_slicing_task(event_json: str) -> None:
         try:
             raw = json.loads(event_json)
             order_id = raw.get("payload", {}).get("order_id")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to parse event JSON for order_id extraction: %s", e)
         if order_id:
             failed = SliceFailedEvent(
                 event_id=uuid4(),

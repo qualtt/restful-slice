@@ -50,6 +50,28 @@ class PostgresDB:
     def insert(self, table: str, record_id: str, data: dict[str, Any]):
         with self._connect() as conn:
             with conn.cursor() as cur:
+                if table == "telemetry_events":
+                    cur.execute(
+                        """
+                        INSERT INTO telemetry_events (
+                            id, session_id, event_name, route, consent_version, context, data, client_ts
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (id) DO NOTHING
+                        """,
+                        (
+                            record_id,
+                            data["session_id"],
+                            data["event_name"],
+                            data["route"],
+                            data["consent_version"],
+                            Json(data["context"]),
+                            Json(data["data"]),
+                            data["client_ts"],
+                        ),
+                    )
+                    return
+
                 if table == "files":
                     cur.execute(
                         """
@@ -192,10 +214,16 @@ class PostgresDB:
 
         with self._connect() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    f"UPDATE orders SET {', '.join(set_clauses)} WHERE order_id = %s",
-                    tuple(values),
+                from psycopg import sql
+
+                query = sql.SQL("UPDATE orders SET {set_clause} WHERE order_id = {order_id}").format(
+                    set_clause=sql.SQL(", ").join(
+                        sql.SQL("{} = {}").format(sql.Identifier(col.split(" = ")[0]), sql.Placeholder())
+                        for col in set_clauses
+                    ),
+                    order_id=sql.Placeholder()
                 )
+                cur.execute(query, tuple(values))
 
     def delete(self, table: str, record_id: str):
         with self._connect() as conn:

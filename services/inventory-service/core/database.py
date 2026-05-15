@@ -143,10 +143,16 @@ class PostgresDB:
 
                     if set_parts:
                         values.append(record_id)
-                        cur.execute(
-                            f"UPDATE reservations SET {', '.join(set_parts)} WHERE order_id = %s",
-                            tuple(values),
-                        )
+                    from psycopg import sql
+                    
+                    query = sql.SQL("UPDATE reservations SET {set_clause} WHERE order_id = {order_id}").format(
+                        set_clause=sql.SQL(", ").join(
+                            sql.SQL("{} = {}").format(sql.Identifier(col.split(" = ")[0]), sql.Placeholder())
+                            for col in set_parts
+                        ),
+                        order_id=sql.Placeholder()
+                    )
+                    cur.execute(query, tuple(values))
                     return
 
                 raise ValueError(f"Unsupported table: {table}")

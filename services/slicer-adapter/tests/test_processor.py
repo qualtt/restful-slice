@@ -132,5 +132,11 @@ def test_process_slicing_task_invalid_payload_raises(
 ) -> None:
     mock_get_settings.return_value = MagicMock()
 
-    with pytest.raises(ValidationError):
-        process_slicing_task("{not json")
+    with patch("src.core.processor.publish_event_with_retries") as mock_publish:
+        process_slicing_task('{"payload": {"order_id": "12345"}}')
+        
+        mock_publish.assert_called_once()
+        queue, event = mock_publish.call_args[0]
+        assert queue == RESULTS_QUEUE
+        assert event.event_type == "slice.failed"
+        assert event.payload.error_code == "INVALID_PAYLOAD"
