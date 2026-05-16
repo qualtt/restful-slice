@@ -292,8 +292,16 @@ services:
       - "80:8080"
     environment:
       - SEC_RULE_ENGINE=On
-      # Совпадает с listen 8080 и со встроенным HEALTHCHECK образа (нельзя PORT=80 — non-root).
+      # Совпадает с listen 8080 (нельзя PORT=80 — non-root).
       - PORT=8080
+    # Встроенный HEALTHCHECK образа бьёт в https://localhost:8443/healthz; наш vhost только HTTP :8080 —
+    # иначе curl внутри контейнера даёт exit 7 и Swarm помечает задачу unhealthy.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
     configs:
       - source: gateway_nginx_entry
         target: /etc/nginx/templates/conf.d/default.conf.template
