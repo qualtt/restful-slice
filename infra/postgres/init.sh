@@ -1,30 +1,35 @@
 #!/bin/sh
+set -e
 
-set -e # при любой ошибке скрипт ЛЯЖЕТ
-
-# пароли подсасывает из переменных окружения
+# 1. Создаем базы и пользователей
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    -- БД
     CREATE DATABASE orders_db;
     CREATE DATABASE inventory_db;
 
-    -- ЮЗЕРЫ (пароли в .env)
     CREATE USER $ORDER_DB_USER WITH ENCRYPTED PASSWORD '$ORDER_DB_PASSWORD';
     CREATE USER $INV_DB_USER WITH ENCRYPTED PASSWORD '$INV_DB_PASSWORD';
 
-    -- ПРАВА
     ALTER DATABASE orders_db OWNER TO $ORDER_DB_USER;
     ALTER DATABASE inventory_db OWNER TO $INV_DB_USER;
 EOSQL
 
+# 2. Настраиваем права для orders_db
+# Мы даем права не только на текущие таблицы, но и на все будущие через ALTER DEFAULT PRIVILEGES
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "orders_db" <<-EOSQL
-    GRANT USAGE, CREATE ON SCHEMA public TO $ORDER_DB_USER;
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $ORDER_DB_USER;
+    GRANT ALL ON SCHEMA public TO $ORDER_DB_USER;
+    GRANT ALL ON ALL TABLES IN SCHEMA public TO $ORDER_DB_USER;
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO $ORDER_DB_USER;
+
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO $ORDER_DB_USER;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO $ORDER_DB_USER;
 EOSQL
 
+# 3. Настраиваем права для inventory_db
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "inventory_db" <<-EOSQL
-    GRANT USAGE, CREATE ON SCHEMA public TO $INV_DB_USER;
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $INV_DB_USER;
+    GRANT ALL ON SCHEMA public TO $INV_DB_USER;
+    GRANT ALL ON ALL TABLES IN SCHEMA public TO $INV_DB_USER;
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO $INV_DB_USER;
+
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO $INV_DB_USER;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO $INV_DB_USER;
 EOSQL
