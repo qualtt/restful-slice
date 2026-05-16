@@ -287,8 +287,11 @@ services:
     environment:
       - SEC_RULE_ENGINE=On
     configs:
-      - source: gateway_nginx_conf
+      - source: gateway_nginx_entry
         target: /etc/nginx/templates/conf.d/default.conf.template
+        mode: 0444
+      - source: gateway_nginx_vhost
+        target: /etc/nginx/restful-slice-gateway.conf
         mode: 0444
     networks:
       - public_net
@@ -336,7 +339,11 @@ configs:
     name: restful-slice_bootstrap_sql_${BOOTSTRAP_VERSION}
     file: ./infra/postgres/bootstrap.sql
 
-  # Тот же принцип, что у bootstrap.sql: immutable Swarm config → версия в имени.
-  gateway_nginx_conf:
-    name: restful-slice_gateway_nginx_${GATEWAY_CONF_VERSION}
-    file: ./infra/nginx/nginx.conf
+  # Два файла: вход для envsubst (одна строка include) + реальный vhost без подстановки.
+  # GATEWAY_CONF_VERSION = хэш от пары файлов в CI (см. wf_1.yaml).
+  gateway_nginx_entry:
+    name: restful-slice_gateway_entry_${GATEWAY_CONF_VERSION}
+    file: ./infra/nginx/default.conf.template
+  gateway_nginx_vhost:
+    name: restful-slice_gateway_vhost_${GATEWAY_CONF_VERSION}
+    file: ./infra/nginx/restful-slice-gateway.conf

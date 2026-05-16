@@ -409,7 +409,7 @@ jobs:
 
           # Версии для immutable Swarm configs (имена в docker-stack.yml используют ${...}).
           export BOOTSTRAP_VERSION="$(sha256sum infra/postgres/bootstrap.sql | cut -c1-12)"
-          export GATEWAY_CONF_VERSION="$(sha256sum infra/nginx/nginx.conf | cut -c1-12)"
+          export GATEWAY_CONF_VERSION="$(cat infra/nginx/default.conf.template infra/nginx/restful-slice-gateway.conf | sha256sum | cut -c1-12)"
           echo "BOOTSTRAP_VERSION=$BOOTSTRAP_VERSION"
           echo "GATEWAY_CONF_VERSION=$GATEWAY_CONF_VERSION"
 

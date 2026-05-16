@@ -1,0 +1,4 @@
+# Единственная строка, которая проходит через CRS envsubst: без символа $,
+# иначе подстановка ломает nginx-переменные в основном конфиге.
+# Файл не кладём в conf.d — иначе nginx подхватит его дважды (glob + include).
+include /etc/nginx/restful-slice-gateway.conf;

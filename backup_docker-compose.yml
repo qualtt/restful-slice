@@ -170,7 +170,8 @@ services:
     environment:
       - SEC_RULE_ENGINE=On
     volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/templates/conf.d/default.conf.template:ro
+      - ./infra/nginx/default.conf.template:/etc/nginx/templates/conf.d/default.conf.template:ro
+      - ./infra/nginx/restful-slice-gateway.conf:/etc/nginx/restful-slice-gateway.conf:ro
     networks:
       - public_net
     healthcheck:
