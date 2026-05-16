@@ -2,7 +2,7 @@ import logging
 import json
 import shutil
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
@@ -46,6 +46,18 @@ def _orca_profile_paths(
     }
 
 
+def _extract_order_id_from_invalid_event(event_json: str) -> UUID | None:
+    try:
+        raw = json.loads(event_json)
+        raw_order_id = raw.get("payload", {}).get("order_id")
+        if raw_order_id is None:
+            return None
+        return UUID(str(raw_order_id))
+    except Exception as e:
+        logger.warning("Failed to extract valid order_id from invalid event: %s", e)
+        return None
+
+
 def process_slicing_task(event_json: str) -> None:
     settings = get_settings()
     minio_client = MinioClient(settings)
@@ -55,12 +67,7 @@ def process_slicing_task(event_json: str) -> None:
         job = SliceRequestedEvent.model_validate_json(event_json)
     except ValidationError as exc:
         logger.exception("Invalid slice.requested payload")
-        order_id = None
-        try:
-            raw = json.loads(event_json)
-            order_id = raw.get("payload", {}).get("order_id")
-        except Exception as e:
-            logger.warning("Failed to parse event JSON for order_id extraction: %s", e)
+        order_id = _extract_order_id_from_invalid_event(event_json)
         if order_id:
             failed = SliceFailedEvent(
                 event_id=uuid4(),

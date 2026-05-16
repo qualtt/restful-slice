@@ -1,7 +1,10 @@
 import os
+from pathlib import Path
 from typing import Any
 
 import psycopg
+from alembic import command
+from alembic.config import Config
 from psycopg.rows import dict_row
 
 
@@ -16,6 +19,33 @@ class PostgresDB:
 
     def _connect(self):
         return psycopg.connect(self.url, autocommit=True, row_factory=dict_row)
+
+    @staticmethod
+    def _service_root() -> Path:
+        return Path(__file__).resolve().parent.parent
+
+    @classmethod
+    def _alembic_config(cls) -> Config:
+        service_root = cls._service_root()
+        config = Config(str(service_root / "alembic.ini"))
+        config.set_main_option("script_location", str(service_root / "alembic"))
+        return config
+
+    @staticmethod
+    def _core_tables_exist(cur: psycopg.Cursor) -> bool:
+        cur.execute(
+            """
+            SELECT
+                to_regclass('public.inventory') IS NOT NULL AS inventory_exists,
+                to_regclass('public.reservations') IS NOT NULL AS reservations_exists
+            """
+        )
+        row = cur.fetchone()
+        return bool(row and row["inventory_exists"] and row["reservations_exists"])
+
+    @classmethod
+    def _apply_migrations(cls) -> None:
+        command.upgrade(cls._alembic_config(), "head")
 
     def insert(self, table: str, record_id: str, data: dict[str, Any]):
         with self._connect() as conn:
@@ -195,7 +225,14 @@ class PostgresDB:
         )
 
     def reset_stub(self):
-        # Kept for test compatibility.
+        schema_ready = False
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                schema_ready = self._core_tables_exist(cur)
+
+        if not schema_ready:
+            self._apply_migrations()
+
         with self._connect() as conn:
             with conn.cursor() as cur:
                 self._ensure_schema(cur)
