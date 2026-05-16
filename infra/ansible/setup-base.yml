@@ -5,6 +5,7 @@
   vars:
     # ВСТАВЬ СЮДА СВОЙ КЛЮЧ NETBIRD!
     netbird_setup_key: "{{ lookup('env', 'NETBIRD_SETUP_KEY') }}"
+    ghcr_token: "{{ lookup('env', 'GHCR_TOKEN') }}"
 
   tasks:
     - name: Update apt cache
@@ -53,6 +54,11 @@
         name: docker
         state: started
         enabled: yes
+
+    - name: Log in to GHCR
+      shell: echo "{{ ghcr_token }}" | docker login ghcr.io -u qualtt --password-stdin
+      no_log: true # Чтобы токен не светился в консоли
+      changed_when: false
 
     # --- ИМЕНОВАНИЕ И МЕТКИ (DO-IT-YOURSELF) ---
     - name: Set hostname to match inventory name
