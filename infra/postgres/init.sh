@@ -1,35 +1,24 @@
 #!/bin/sh
+# Тонкий wrapper над bootstrap.sql.
+# Запускается postgres'ом из /docker-entrypoint-initdb.d/ ТОЛЬКО на первом
+# инициализации PGDATA (когда volume пустой). На уже существующем томе postgres
+# его не вызовет, поэтому в продакшене ту же самую логику делает Swarm-сервис
+# db_bootstrap (см. docker-stack.yml).
+#
+# Сам SQL — в infra/postgres/bootstrap.sql, единая точка правды.
+
 set -e
 
-# 1. Создаем базы и пользователей
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    CREATE DATABASE orders_db;
-    CREATE DATABASE inventory_db;
+: "${ORDER_DB_NAME:=orders_db}"
+: "${INV_DB_NAME:=inventory_db}"
 
-    CREATE USER $ORDER_DB_USER WITH ENCRYPTED PASSWORD '$ORDER_DB_PASSWORD';
-    CREATE USER $INV_DB_USER WITH ENCRYPTED PASSWORD '$INV_DB_PASSWORD';
-
-    ALTER DATABASE orders_db OWNER TO $ORDER_DB_USER;
-    ALTER DATABASE inventory_db OWNER TO $INV_DB_USER;
-EOSQL
-
-# 2. Настраиваем права для orders_db
-# Мы даем права не только на текущие таблицы, но и на все будущие через ALTER DEFAULT PRIVILEGES
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "orders_db" <<-EOSQL
-    GRANT ALL ON SCHEMA public TO $ORDER_DB_USER;
-    GRANT ALL ON ALL TABLES IN SCHEMA public TO $ORDER_DB_USER;
-    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO $ORDER_DB_USER;
-
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO $ORDER_DB_USER;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO $ORDER_DB_USER;
-EOSQL
-
-# 3. Настраиваем права inventory_db
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "inventory_db" <<-EOSQL
-    GRANT ALL ON SCHEMA public TO $INV_DB_USER;
-    GRANT ALL ON ALL TABLES IN SCHEMA public TO $INV_DB_USER;
-    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO $INV_DB_USER;
-
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO $INV_DB_USER;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO $INV_DB_USER;
-EOSQL
+psql -v ON_ERROR_STOP=1 \
+    --username "$POSTGRES_USER" \
+    --dbname   "$POSTGRES_DB"   \
+    --variable=ord_user="$ORDER_DB_USER"     \
+    --variable=ord_pass="$ORDER_DB_PASSWORD" \
+    --variable=ord_db="$ORDER_DB_NAME"       \
+    --variable=inv_user="$INV_DB_USER"       \
+    --variable=inv_pass="$INV_DB_PASSWORD"   \
+    --variable=inv_db="$INV_DB_NAME"         \
+    -f /opt/restful-slice/bootstrap.sql

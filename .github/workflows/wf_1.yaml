@@ -285,13 +285,9 @@ jobs:
       - name: Set lower case owner name
         run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
 
-      # --- СБОРКА И ПУШ СВОЕГО POSTGRES ---
-      - name: Build Postgres image
-        run: docker build -t ghcr.io/${{ env.REPO_LC }}/postgres:latest ./infra/postgres
-
-      - name: Push Postgres image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: docker push ghcr.io/${{ env.REPO_LC }}/postgres:latest
+      # На проде postgres — vanilla postgres:15-alpine, кастомный образ нам
+      # больше не нужен. Локальный Compose всё ещё билдит его сам из
+      # ./infra/postgres (там нужен bake init-скрипта из-за macOS/FUSE).
 
       # --- СБОРКА И ПРОВЕРКА ORDER SERVICE ---
       - name: Build Order Service image
@@ -406,6 +402,12 @@ jobs:
           set -a
           source .env
           set +a
+
+          # 1.1. Версионируем имя Swarm-config'а для bootstrap.sql по хэшу содержимого.
+          # Если SQL не менялся — имя совпадёт с прошлым деплоем (no-op), если менялся —
+          # Swarm создаст новый config (старый остаётся как audit-артефакт).
+          export BOOTSTRAP_VERSION="$(sha256sum infra/postgres/bootstrap.sql | cut -c1-12)"
+          echo "BOOTSTRAP_VERSION=$BOOTSTRAP_VERSION"
 
           # 2. Физически подставляем переменные в файл (вместо глючного docker compose config)
           envsubst < docker-stack.yml > stack-resolved.yml

@@ -15,8 +15,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       ORDER_DB_USER: ${ORDER_DB_USER}
       ORDER_DB_PASSWORD: ${ORDER_DB_PASSWORD}
+      ORDER_DB_NAME: ${ORDER_DB_NAME}
       INV_DB_USER: ${INV_DB_USER}
       INV_DB_PASSWORD: ${INV_DB_PASSWORD}
+      INV_DB_NAME: ${INV_DB_NAME}
     volumes:
       - pg_data:/var/lib/postgresql/data
     networks:

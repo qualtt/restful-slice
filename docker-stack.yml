@@ -2,16 +2,14 @@ version: '3.8'
 
 services:
   postgres:
-    # Берем собственный образ с вшитым init.sh из GitHub Registry
-    image: ghcr.io/qualtt/restful-slice/postgres:latest
+    # Прод использует vanilla-образ — DDL identity применяет сервис db_bootstrap.
+    # Кастомный образ из infra/postgres остался ТОЛЬКО для локального Compose
+    # (там нужен bake init-скрипта из-за FUSE на macOS).
+    image: postgres:15-alpine
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-      - ORDER_DB_USER=${ORDER_DB_USER}
-      - ORDER_DB_PASSWORD=${ORDER_DB_PASSWORD}
-      - INV_DB_USER=${INV_DB_USER}
-      - INV_DB_PASSWORD=${INV_DB_PASSWORD}
     volumes:
       - pg_data:/var/lib/postgresql/data
     networks:
@@ -54,6 +52,52 @@ services:
 
   # --- ТВОИ СЕРВИСЫ (Скачиваются из GitHub Registry) ---
 
+  # Одноразовый сервис, чинит роли/БД/гранты на каждом деплое.
+  # SQL берётся из infra/postgres/bootstrap.sql через Swarm config (см. configs:
+  # внизу файла) — тот же файл, что bake'ится в локальный Compose-образ.
+  # Любая правка SQL меняет hash → CI создаёт новый config (имя версионируется
+  # через ${BOOTSTRAP_VERSION}), старый остаётся как audit-артефакт.
+  db_bootstrap:
+    image: postgres:15-alpine
+    environment:
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGUSER=${POSTGRES_USER}
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+      - PGDATABASE=${POSTGRES_DB}
+    networks:
+      - backend_net
+    configs:
+      - source: bootstrap_sql
+        target: /opt/restful-slice/bootstrap.sql
+        mode: 0444
+    command:
+      - sh
+      - -ec
+      - |
+        echo "[bootstrap] waiting for postgres..."
+        until pg_isready -q; do sleep 2; done
+        echo "[bootstrap] applying bootstrap.sql..."
+        psql -v ON_ERROR_STOP=1 \
+          --variable=ord_user="${ORDER_DB_USER}"     \
+          --variable=ord_pass="${ORDER_DB_PASSWORD}" \
+          --variable=ord_db="${ORDER_DB_NAME}"       \
+          --variable=inv_user="${INV_DB_USER}"       \
+          --variable=inv_pass="${INV_DB_PASSWORD}"   \
+          --variable=inv_db="${INV_DB_NAME}"         \
+          -f /opt/restful-slice/bootstrap.sql
+        echo "[bootstrap] done"
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 20
+      placement:
+        constraints:
+          - node.role == manager
+
   order_service:
     # Замени "твое-имя-в-гитхабе" на реальное
     image: ghcr.io/qualtt/restful-slice/order-service:latest
@@ -64,14 +108,69 @@ services:
       - ORDER_DB_USER=${ORDER_DB_USER}
       - ORDER_DB_PASSWORD=${ORDER_DB_PASSWORD}
       - ORDER_DB_NAME=${ORDER_DB_NAME}
+    # Перекрываем CMD из Dockerfile, не трогая код сервиса:
+    # 1) ждём, пока postgres начнёт принимать наши креды,
+    # 2) ретраим alembic (на случай, если db_bootstrap ещё не успел доделать гранты),
+    # 3) только потом стартуем uvicorn.
+    # Логика целиком на Python — чтобы CI-шный envsubst не съел shell-переменные.
+    command:
+      - sh
+      - -ec
+      - |
+        python - <<'PYEOF'
+        import os, sys, time, subprocess, psycopg
+
+        deadline = time.time() + 180
+        last = ""
+        while time.time() < deadline:
+            try:
+                psycopg.connect(
+                    host=os.environ["DB_HOST"],
+                    port=int(os.environ["POSTGRES_PORT"]),
+                    user=os.environ["ORDER_DB_USER"],
+                    password=os.environ["ORDER_DB_PASSWORD"],
+                    dbname=os.environ["ORDER_DB_NAME"],
+                    connect_timeout=3,
+                ).close()
+                print("[wait_db] postgres reachable", flush=True)
+                break
+            except Exception as exc:
+                msg = str(exc)
+                if msg != last:
+                    print(f"[wait_db] not ready: {msg}", flush=True)
+                    last = msg
+                time.sleep(2)
+        else:
+            print("[wait_db] timeout waiting for postgres", flush=True)
+            sys.exit(1)
+
+        for i in range(30):
+            rc = subprocess.call(["alembic", "upgrade", "head"])
+            if rc == 0:
+                break
+            print(f"[entrypoint] alembic failed (attempt {i+1}/30), retrying in 5s...", flush=True)
+            time.sleep(5)
+        else:
+            print("[entrypoint] alembic giving up", flush=True)
+            sys.exit(1)
+        PYEOF
+        exec uvicorn main:app --host 0.0.0.0 --port 8080
     networks:
       - public_net
       - backend_net
     deploy:
       replicas: 2
       update_config:
-        order: start-first # Zero-downtime деплой
-        failure_action: rollback
+        parallelism: 1
+        order: start-first
+        failure_action: pause   # больше никаких rollback на старый кривой Spec
+        monitor: 30s
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 0         # бесконечные ретраи, но с задержкой
+        window: 120s
 
   inventory_service:
     image: ghcr.io/qualtt/restful-slice/inventory-service:latest
@@ -82,11 +181,64 @@ services:
       - INV_DB_USER=${INV_DB_USER}
       - INV_DB_PASSWORD=${INV_DB_PASSWORD}
       - INV_DB_NAME=${INV_DB_NAME}
+    command:
+      - sh
+      - -ec
+      - |
+        python - <<'PYEOF'
+        import os, sys, time, subprocess, psycopg
+
+        deadline = time.time() + 180
+        last = ""
+        while time.time() < deadline:
+            try:
+                psycopg.connect(
+                    host=os.environ["DB_HOST"],
+                    port=int(os.environ["POSTGRES_PORT"]),
+                    user=os.environ["INV_DB_USER"],
+                    password=os.environ["INV_DB_PASSWORD"],
+                    dbname=os.environ["INV_DB_NAME"],
+                    connect_timeout=3,
+                ).close()
+                print("[wait_db] postgres reachable", flush=True)
+                break
+            except Exception as exc:
+                msg = str(exc)
+                if msg != last:
+                    print(f"[wait_db] not ready: {msg}", flush=True)
+                    last = msg
+                time.sleep(2)
+        else:
+            print("[wait_db] timeout waiting for postgres", flush=True)
+            sys.exit(1)
+
+        for i in range(30):
+            rc = subprocess.call(["alembic", "upgrade", "head"])
+            if rc == 0:
+                break
+            print(f"[entrypoint] alembic failed (attempt {i+1}/30), retrying in 5s...", flush=True)
+            time.sleep(5)
+        else:
+            print("[entrypoint] alembic giving up", flush=True)
+            sys.exit(1)
+        PYEOF
+        exec uvicorn main:app --host 0.0.0.0 --port 8081
     networks:
       - public_net
       - backend_net
     deploy:
       replicas: 2
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: pause
+        monitor: 30s
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 0
+        window: 120s
 
   slicer_api:
     image: ghcr.io/qualtt/restful-slice/slicer-api:latest
@@ -169,3 +321,13 @@ volumes:
   pg_data:
   minio_data:
   slicer_data:
+
+# Swarm configs неизменяемы по содержимому: чтобы при правке bootstrap.sql
+# можно было задеплоиться, имя версионируется хэшем содержимого, который CI
+# вычисляет и экспортирует как BOOTSTRAP_VERSION перед envsubst. Если файл
+# не менялся — name совпадает с прошлым деплоем, Swarm видит тот же config,
+# никакого пересоздания нет.
+configs:
+  bootstrap_sql:
+    name: restful-slice_bootstrap_sql_${BOOTSTRAP_VERSION}
+    file: ./infra/postgres/bootstrap.sql
