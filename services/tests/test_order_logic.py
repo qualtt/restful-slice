@@ -1,3 +1,4 @@
+import json
 import sys
 import os
 import pytest
@@ -66,3 +67,43 @@ class TestOrderManager:
 
         with pytest.raises(ValueError, match="Неизвестный статус"):
             self.manager.update_status(order_id, "unknown_status_123")
+
+    def test_slicing_result_reserve_failure_marks_order_failed(self, monkeypatch):
+        import main as order_main
+
+        order = self.manager.create_order(self.file_id, self.profile_id)
+        order_id = order["orderId"]
+        self.manager.update_status(order_id, OrderStatus.SLICING.value)
+
+        class FailedReserveResponse:
+            status_code = 500
+            text = "reservations_amount_check"
+
+            @staticmethod
+            def json():
+                return {}
+
+        monkeypatch.setattr(order_main, "order_db", self.manager)
+        monkeypatch.setattr(
+            order_main.httpx,
+            "post",
+            lambda *args, **kwargs: FailedReserveResponse(),
+        )
+
+        order_main.handle_slicing_result(
+            json.dumps(
+                {
+                    "event_type": "slice.completed",
+                    "payload": {
+                        "order_id": order_id,
+                        "filament_weight_g": 0.001,
+                        "print_time_sec": 1,
+                    },
+                }
+            )
+        )
+
+        stored = self.manager.get_order(order_id)
+        assert stored["status"] == OrderStatus.FAILED.value
+        assert stored["slicingResult"] is None
+        assert "Inventory reserve failed with 500" in stored["errorMessage"]

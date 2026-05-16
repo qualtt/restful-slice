@@ -173,10 +173,32 @@ class PostgresDB:
                     return
                 raise ValueError(f"Unsupported table: {table}")
 
+    def _ensure_schema(self, cur):
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS inventory (
+                material_id INTEGER PRIMARY KEY,
+                total_grams NUMERIC(12,2) NOT NULL CHECK (total_grams >= 0)
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reservations (
+                order_id TEXT PRIMARY KEY,
+                reservation_id UUID NOT NULL,
+                material_id INTEGER NOT NULL REFERENCES inventory(material_id) ON DELETE RESTRICT,
+                amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+
     def reset_stub(self):
         # Kept for test compatibility.
         with self._connect() as conn:
             with conn.cursor() as cur:
+                self._ensure_schema(cur)
                 cur.execute("TRUNCATE TABLE inventory CASCADE")
 
 

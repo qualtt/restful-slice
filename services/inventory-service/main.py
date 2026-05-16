@@ -247,14 +247,16 @@ async def reserve_material(payload: ReserveRequest):
     currency = profile["material"]["costPerGram"]["currency"]
 
     try:
+        reserved_weight = stock_db.normalize_reservation_amount(payload.weightGrams)
         res_id = stock_db.reserve_material(
-            str(payload.orderId), mat_id, payload.weightGrams
+            str(payload.orderId), mat_id, reserved_weight
         )
         cost = Calculator.calculate_cost(
-            payload.weightGrams, cost_per_gram, profile["markupPercent"]
+            reserved_weight, cost_per_gram, profile["markupPercent"]
         )
         return {
             "reservationId": res_id,
+            "reservedWeightGrams": reserved_weight,
             "price": {"amount": f"{cost:.2f}", "currency": currency},
         }
     except InsufficientStockError as e:

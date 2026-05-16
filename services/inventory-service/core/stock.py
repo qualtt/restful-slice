@@ -1,3 +1,4 @@
+from decimal import Decimal, ROUND_UP
 from uuid import uuid4
 
 
@@ -5,11 +6,25 @@ class InsufficientStockError(ValueError):
     pass
 
 
+RESERVATION_QUANTUM_GRAMS = Decimal("0.01")
+
+
 class InventoryStock:
     def __init__(self):
         from core.database import db_stub
 
         self.db = db_stub
+
+    @staticmethod
+    def normalize_reservation_amount(amount_grams: float) -> float:
+        if amount_grams <= 0:
+            raise ValueError("Количество для резерва должно быть больше нуля")
+
+        amount = Decimal(str(amount_grams)).quantize(
+            RESERVATION_QUANTUM_GRAMS,
+            rounding=ROUND_UP,
+        )
+        return float(max(amount, RESERVATION_QUANTUM_GRAMS))
 
     def get_stock(self, material_id: int) -> float:
         # SELECT total_grams FROM inventory WHERE id = material_id
@@ -47,13 +62,12 @@ class InventoryStock:
     def reserve_material(
         self, order_id: str, material_id: int, amount_grams: float
     ) -> str:
-        if amount_grams <= 0:
-            raise ValueError("Количество для резерва должно быть больше нуля")
+        reservation_amount = self.normalize_reservation_amount(amount_grams)
 
         available = self.get_available(material_id)
-        if available < amount_grams:
+        if available < reservation_amount:
             raise InsufficientStockError(
-                f"Only {available}g available, but {amount_grams}g requested"
+                f"Only {available}g available, but {reservation_amount}g requested"
             )
 
         res_id = str(uuid4())
@@ -66,7 +80,7 @@ class InventoryStock:
                 "order_id": order_id,
                 "reservation_id": res_id,
                 "material_id": material_id,
-                "amount": amount_grams,
+                "amount": reservation_amount,
             },
         )
         return res_id
