@@ -65,8 +65,9 @@ bash infra/scripts/load-fixtures-stack.sh
 STACK_NAME=my-stack bash infra/scripts/load-fixtures-stack.sh
 ```
 
-Скрипт создаёт временный swarm service в сети `${STACK_NAME}_backend_net`, ждёт готовности
-`minio` и затем зеркалит `tests/postman/fixtures/profiles/` в тот же bucket.
+Скрипт ждёт локальный task-контейнер сервиса `${STACK_NAME}_minio`, затем запускает
+`minio/mc` в его network namespace и зеркалит `tests/postman/fixtures/profiles/`
+в тот же bucket.
 
 ## Как добавить коллекцию в Postman extension for VS Code
 
