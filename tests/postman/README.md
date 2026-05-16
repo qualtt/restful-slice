@@ -26,10 +26,9 @@
 
 - happy-path модель: [cube.stl](/workspaces/restful-slice/tests/postman/fixtures/cube.stl)
 - negative test файл: [not-a-model.txt](/workspaces/restful-slice/tests/postman/fixtures/not-a-model.txt)
-- MinIO profile fixtures для `profileId=3`:
-- [printer.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/3/printer.json)
-- [process.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/3/process.json)
-- [filament.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/3/filament.json)
+- `profileId=3` — Standard: [printer.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/3/printer.json), [process.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/3/process.json), [filament.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/3/filament.json)
+- `profileId=4` — Draft: [printer.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/4/printer.json), [process.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/4/process.json), [filament.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/4/filament.json)
+- `profileId=5` — High Quality: [printer.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/5/printer.json), [process.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/5/process.json), [filament.json](/workspaces/restful-slice/tests/postman/fixtures/profiles/5/filament.json)
 
 ## Подготовка локального стенда
 

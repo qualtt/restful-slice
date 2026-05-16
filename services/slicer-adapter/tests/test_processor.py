@@ -124,19 +124,82 @@ def test_process_slicing_task_orca_failure_publishes_failed(
     assert "Orca slice failed" in event.payload.error_message
 
 
+@patch("src.core.processor.shutil.rmtree")
+@patch("src.core.processor.publish_event_with_retries")
+@patch("src.core.processor.OrcaSlicerClient")
 @patch("src.core.processor.MinioClient")
 @patch("src.core.processor.get_settings")
-def test_process_slicing_task_invalid_payload_raises(
+def test_process_slicing_task_local_orca_client_failure_publishes_failed(
+    mock_get_settings,
+    mock_minio_cls,
+    mock_orca_cls,
+    mock_publish,
+    _mock_rmtree,
+    slice_requested_event_json: str,
+) -> None:
+    mock_get_settings.return_value = MagicMock(
+        service_name="slicer-adapter",
+        event_spec_version="1.0.0",
+    )
+
+    minio = mock_minio_cls.return_value
+    minio.download_files.return_value = {
+        "stl/orders/22222222/model.stl": "/tmp/x.stl",
+        "profiles/printers/prusa_mk3s.json": "/tmp/p.json",
+        "profiles/process/0_20mm_quality.json": "/tmp/pr.json",
+        "profiles/filaments/generic_pla.json": "/tmp/f.json",
+    }
+
+    mock_orca_cls.return_value.slice_model.side_effect = RuntimeError(
+        "Slicer response does not look like G-code"
+    )
+
+    process_slicing_task(slice_requested_event_json)
+
+    mock_publish.assert_called_once()
+    queue, event = mock_publish.call_args[0]
+    assert queue == RESULTS_QUEUE
+    assert isinstance(event, SliceFailedEvent)
+    assert event.event_type == "slice.failed"
+    assert event.payload.retryable is False
+    assert event.payload.error_message == "Slicer response does not look like G-code"
+
+
+@patch("src.core.processor.MinioClient")
+@patch("src.core.processor.get_settings")
+def test_process_slicing_task_invalid_payload_with_valid_order_id_publishes_failed(
     mock_get_settings,
     _mock_minio_cls,
 ) -> None:
-    mock_get_settings.return_value = MagicMock()
+    mock_get_settings.return_value = MagicMock(
+        service_name="slicer-adapter",
+        event_spec_version="1.0.0",
+    )
 
     with patch("src.core.processor.publish_event_with_retries") as mock_publish:
-        process_slicing_task('{"payload": {"order_id": "12345"}}')
-        
+        process_slicing_task(
+            '{"payload": {"order_id": "22222222-2222-2222-2222-222222222222"}}'
+        )
+
         mock_publish.assert_called_once()
         queue, event = mock_publish.call_args[0]
         assert queue == RESULTS_QUEUE
         assert event.event_type == "slice.failed"
         assert event.payload.error_code == "INVALID_PAYLOAD"
+
+
+@patch("src.core.processor.MinioClient")
+@patch("src.core.processor.get_settings")
+def test_process_slicing_task_invalid_payload_with_invalid_order_id_skips_publish(
+    mock_get_settings,
+    _mock_minio_cls,
+) -> None:
+    mock_get_settings.return_value = MagicMock(
+        service_name="slicer-adapter",
+        event_spec_version="1.0.0",
+    )
+
+    with patch("src.core.processor.publish_event_with_retries") as mock_publish:
+        process_slicing_task('{"payload": {"order_id": "12345"}}')
+
+        mock_publish.assert_not_called()
