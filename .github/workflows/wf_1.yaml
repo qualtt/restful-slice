@@ -58,6 +58,7 @@ jobs:
         run: |
           export PYTHONPATH="$(pwd):$(pwd)/services/inventory-service"
           pytest services/tests/test_inventory_logic.py --cov=services/inventory-service --cov-report=term-missing --cov-report=xml --cov-append
+          pytest services/tests/test_inventory_profiles_api.py --cov=services/inventory-service --cov-report=term-missing --cov-report=xml --cov-append
 
           export PYTHONPATH="$(pwd):$(pwd)/services/order-service"
           pytest services/tests/test_order_logic.py --cov=services/order-service --cov-report=term-missing --cov-report=xml --cov-append

@@ -129,7 +129,17 @@ PROCESS_DB = {
         "processId": 1,
         "name": "0.20mm Standard",
         "orcaProcessId": "0.20mm_standard_creality_k1c_0.4_nozzle",
-    }
+    },
+    2: {
+        "processId": 2,
+        "name": "0.24mm Draft",
+        "orcaProcessId": "0.24mm_draft_creality_k1c_0.4_nozzle",
+    },
+    3: {
+        "processId": 3,
+        "name": "0.12mm Fine",
+        "orcaProcessId": "0.12mm_fine_creality_k1c_0.4_nozzle",
+    },
 }
 
 PROFILES_DB = [
@@ -142,6 +152,26 @@ PROFILES_DB = [
         "markupPercent": 1.2,
         "isEnabled": True,
         "description": "Стандартный профиль для прототипов на Creality K1C",
+    },
+    {
+        "profileId": 4,
+        "displayName": "PETG Черновой (K1C)",
+        "printer": PRINTERS_DB[1],
+        "material": MATERIALS_DB[1],
+        "process": PROCESS_DB[2],
+        "markupPercent": 1.0,
+        "isEnabled": True,
+        "description": "Быстрый draft-профиль с высотой слоя 0.24 мм для черновых прогонов",
+    },
+    {
+        "profileId": 5,
+        "displayName": "PETG Высокое качество (K1C)",
+        "printer": PRINTERS_DB[1],
+        "material": MATERIALS_DB[1],
+        "process": PROCESS_DB[3],
+        "markupPercent": 1.35,
+        "isEnabled": True,
+        "description": "Точный профиль с высотой слоя 0.12 мм для финальных деталей и витринных моделей",
     }
 ]
 
