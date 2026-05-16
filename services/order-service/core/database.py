@@ -48,6 +48,7 @@ class PostgresDB:
     def _apply_migrations(cls) -> None:
         command.upgrade(cls._alembic_config(), "head")
 
+    @staticmethod
     def _map_order_row(row: dict[str, Any] | None) -> dict[str, Any] | None:
         if not row:
             return None
