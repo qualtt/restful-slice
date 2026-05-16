@@ -143,16 +143,19 @@ services:
 networks:
   backend_net:
     driver: overlay
-    driver_opts:
-      com.docker.network.driver.mtu: "1200"
+    ipam:
+      config:
+        - subnet: 10.20.1.0/24  # Смени на 10.20... чтобы точно не было конфликтов
   public_net:
     driver: overlay
-    driver_opts:
-      com.docker.network.driver.mtu: "1200"
+    ipam:
+      config:
+        - subnet: 10.20.2.0/24
   slicer_internal_net:
     driver: overlay
-    driver_opts:
-      com.docker.network.driver.mtu: "1200"
+    ipam:
+      config:
+        - subnet: 10.20.3.0/24
 
 volumes:
   pg_data:

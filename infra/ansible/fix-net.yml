@@ -1,0 +1,40 @@
+---
+- name: Fix Docker Network Loop and Reset Interfaces
+  hosts: all
+  become: yes
+  tasks:
+    # 1. Останавливаем докер, чтобы он перестал пересоздавать интерфейсы
+    - name: Stop Docker service
+      systemd:
+        name: docker
+        state: stopped
+
+    # 2. Удаляем все "мусорные" интерфейсы докера (br-..., vx-..., ov-...)
+    # Мы используем shell с игнорированием ошибок, так как часть интерфейсов уже может быть удалена
+    - name: Delete Docker network interfaces
+      shell: |
+        for i in $(ip -o link show | awk -F': ' '{print $2}' | grep -E '^(br-|docker|ov-|vx-|veth)'); do
+          ip link delete $i || true
+        done
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    # 3. Чистим сетевой кеш докера (это заставит Swarm пересобрать overlay сети правильно)
+    - name: Remove Docker network state files
+      file:
+        path: /var/lib/docker/network/files/
+        state: absent
+
+    # 4. Проверяем, выключен ли UFW (фаервол - главный враг Swarm)
+    - name: Disable UFW to prevent VXLAN blocking
+      command: ufw disable
+      failed_when: false
+      changed_when: false
+
+    # 5. Запускаем Docker обратно
+    - name: Start Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
