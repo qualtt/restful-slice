@@ -6,10 +6,11 @@ on:
   pull_request:
     branches: [main]
 
-# ВАЖНО: Разрешаем Actions записывать собранные образы в GitHub Packages (GHCR)
+# GHCR (push образов) + GHA cache (BuildKit type=gha) для ускорения повторных сборок.
 permissions:
   contents: read
   packages: write
+  actions: write
 
 jobs:
   # 1. Unit Тесты и анализ покрытия кода (БЕЗ ИЗМЕНЕНИЙ)
@@ -262,10 +263,42 @@ jobs:
         if: always()
         run: docker compose down -v --remove-orphans
 
-  # 4. Build + SCA + Push в GHCR (АДАПТИРОВАНО ПОД КЛАСТЕР)
+  # 4. Build + SCA + Push в GHCR: параллельно по образам + BuildKit cache (GHA), без платных API.
   build_i_sca:
-    name: Build, SCA and Push
+    name: "Build, SCA, Push (${{ matrix.id }})"
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: postgres
+            image_name: postgres
+            context: ./infra/postgres
+            target: ""
+            cache_scope: postgres
+          - id: order-service
+            image_name: order-service
+            context: ./services/order-service
+            target: production
+            cache_scope: order-service
+          - id: inventory-service
+            image_name: inventory-service
+            context: ./services/inventory-service
+            target: production
+            cache_scope: inventory-service
+          - id: slicer-api
+            image_name: slicer-api
+            context: "https://github.com/qualtt/orca-slicer-api.git#main"
+            target: ""
+            cache_scope: slicer-api
+            build_args: |
+              ORCASLICER_VERSION=2.3.0
+              TARGETARCH=amd64
+          - id: slicer-adapter
+            image_name: slicer-adapter
+            context: ./services/slicer-adapter
+            target: production
+            cache_scope: slicer-adapter
     # needs:
     #  - security_sast
     #  - api_postman
@@ -273,7 +306,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Авторизуемся в GitHub Container Registry
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -281,85 +313,65 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Docker требует имя репозитория в нижнем регистре
       - name: Set lower case owner name
         run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
 
-      # --- СБОРКА И ПУШ СВОЕГО POSTGRES ---
-      - name: Build Postgres image
-        run: docker build -t ghcr.io/${{ env.REPO_LC }}/postgres:latest ./infra/postgres
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Push Postgres image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: docker push ghcr.io/${{ env.REPO_LC }}/postgres:latest
+      # Отдельные вызовы: у postgres нет target; у slicer-api — только build-args и git context.
+      - name: Build image — service (multi-stage target)
+        if: |
+          matrix.id == 'order-service' || matrix.id == 'inventory-service' || matrix.id == 'slicer-adapter'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          target: ${{ matrix.target }}
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: ghcr.io/${{ env.REPO_LC }}/${{ matrix.image_name }}:latest
+          cache-from: type=gha,scope=${{ matrix.cache_scope }}
+          cache-to: ${{ github.event_name == 'push' && format('type=gha,mode=max,scope={0}', matrix.cache_scope) || '' }}
 
-      # --- СБОРКА И ПРОВЕРКА ORDER SERVICE ---
-      - name: Build Order Service image
-        # ВАЖНО: Указываем --target production для многоэтапной сборки
-        run: docker build --target production -t ghcr.io/${{ env.REPO_LC }}/order-service:latest ./services/order-service
+      - name: Build image — postgres (single-stage)
+        if: matrix.id == 'postgres'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./infra/postgres
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: ghcr.io/${{ env.REPO_LC }}/postgres:latest
+          cache-from: type=gha,scope=postgres
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max,scope=postgres' || '' }}
 
-      - name: Scan Order Service image with Trivy
+      - name: Build image — slicer-api (remote git context)
+        if: matrix.id == 'slicer-api'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          build-args: ${{ matrix.build_args }}
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: ghcr.io/${{ env.REPO_LC }}/slicer-api:latest
+          cache-from: type=gha,scope=slicer-api
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max,scope=slicer-api' || '' }}
+
+      - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ghcr.io/${{ env.REPO_LC }}/order-service:latest
+          image-ref: ghcr.io/${{ env.REPO_LC }}/${{ matrix.image_name }}:latest
           format: table
           ignore-unfixed: true
           severity: 'HIGH,CRITICAL'
           scanners: 'vuln,secret'
           exit-code: '0'
 
-      - name: Push Order Service image
+      - name: Push image to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: docker push ghcr.io/${{ env.REPO_LC }}/order-service:latest
-
-      # --- СБОРКА И ПРОВЕРКА INVENTORY SERVICE ---
-      - name: Build Inventory Service image
-        run: docker build --target production -t ghcr.io/${{ env.REPO_LC }}/inventory-service:latest ./services/inventory-service
-
-      - name: Scan Inventory Service image with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ghcr.io/${{ env.REPO_LC }}/inventory-service:latest
-          format: table
-          ignore-unfixed: true
-          severity: 'HIGH,CRITICAL'
-          scanners: 'vuln,secret'
-          exit-code: '0'
-
-      - name: Push Inventory Service image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: docker push ghcr.io/${{ env.REPO_LC }}/inventory-service:latest
-
-            # --- СБОРКА И ПУШ SLICER API (ИЗ ВНЕШНЕГО РЕПО) ---
-      - name: Build Slicer API image
-        run: |
-          docker build \
-            --build-arg ORCASLICER_VERSION="2.3.0" \
-            --build-arg TARGETARCH="amd64" \
-            -t ghcr.io/${{ env.REPO_LC }}/slicer-api:latest \
-            https://github.com/qualtt/orca-slicer-api.git#main
-
-      - name: Push Slicer API image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: docker push ghcr.io/${{ env.REPO_LC }}/slicer-api:latest
-
-      # --- СБОРКА И ПРОВЕРКА SLICER ADAPTER ---
-      - name: Build Slicer Adapter image
-        run: docker build --target production -t ghcr.io/${{ env.REPO_LC }}/slicer-adapter:latest ./services/slicer-adapter
-
-      - name: Scan Slicer Adapter image with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ghcr.io/${{ env.REPO_LC }}/slicer-adapter:latest
-          format: table
-          ignore-unfixed: true
-          severity: 'HIGH,CRITICAL'
-          scanners: 'vuln,secret'
-          exit-code: '0'
-
-      - name: Push Slicer Adapter image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: docker push ghcr.io/${{ env.REPO_LC }}/slicer-adapter:latest
+        run: docker push ghcr.io/${{ env.REPO_LC }}/${{ matrix.image_name }}:latest
 
 
   # 4. Deploy step: на домашнем сервере (АДАПТИРОВАНО ПОД SWARM)
