@@ -66,6 +66,16 @@ class TestInventoryStock:
         self.stock.confirm_reservation("order-1")
         assert self.stock.get_stock(1) == 750.0
 
+    def test_reserve_tiny_material_uses_minimum_quantum(self):
+        from core.database import db_stub
+
+        self.stock.add_material(2, 1.0)
+        self.stock.reserve_material("order-tiny", 2, 0.001)
+
+        reservation = db_stub.select("reservations", "order-tiny")
+        assert reservation["amount"] == 0.01
+        assert self.stock.get_available(2) == 0.99
+
     def test_reserve_material_cancel(self):
         self.stock.add_material(2, 500.0)
         self.stock.reserve_material("order-2", 2, 100.0)
