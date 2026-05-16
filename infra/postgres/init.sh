@@ -24,7 +24,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "orders_db" <<-EOSQ
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO $ORDER_DB_USER;
 EOSQL
 
-# 3. Настраиваем права для inventory_db
+# 3. Настраиваем права inventory_db
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "inventory_db" <<-EOSQL
     GRANT ALL ON SCHEMA public TO $INV_DB_USER;
     GRANT ALL ON ALL TABLES IN SCHEMA public TO $INV_DB_USER;
