@@ -410,6 +410,15 @@ jobs:
           # 2. Физически подставляем переменные в файл (вместо глючного docker compose config)
           envsubst < docker-stack.yml > stack-resolved.yml
 
+          echo "===== RESOLVED STACK CHECK ====="
+
+          grep -A5 "postgres:" stack-resolved.yml
+
+          grep -A20 "order_service:" stack-resolved.yml
+
+          grep "POSTGRES_USER" stack-resolved.yml
+          grep "ORDER_DB_USER" stack-resolved.yml
+
           # (Опционально) Можешь раскомментировать нижнюю строку, чтобы убедиться,
           # что пароли реально вписались в файл (потом закомментируй, чтобы не светить в логах!)
           # cat stack-resolved.yml
@@ -430,3 +439,7 @@ jobs:
           else
             STACK_NAME=restful-slice bash infra/scripts/load-fixtures-stack.sh
           fi
+
+      - name: Debug swarm envs
+        run: |
+          docker service inspect restful-slice_postgres
