@@ -3,6 +3,7 @@ from typing import BinaryIO, Protocol
 
 import requests
 
+
 class _SettingsLike(Protocol):
     orca_api_url: str
 
@@ -39,6 +40,25 @@ def _model_mime(stl_path: str) -> str:
     }.get(ext, "application/octet-stream")
 
 
+def _extract_error_detail(resp: requests.Response) -> str:
+    try:
+        payload = resp.json()
+    except ValueError:
+        payload = None
+
+    if isinstance(payload, dict):
+        message = payload.get("message")
+        if isinstance(message, str) and message.strip():
+            return message
+        return str(payload)
+
+    if payload is not None:
+        return str(payload)
+
+    text = resp.text.strip()
+    return text or f"HTTP {resp.status_code}"
+
+
 class OrcaSlicerClient:
     def __init__(self, settings: _SettingsLike) -> None:
         self._base = settings.orca_api_url.rstrip("/")
@@ -72,10 +92,7 @@ class OrcaSlicerClient:
                 fh.close()
 
         if not resp.ok:
-            try:
-                detail = resp.json()
-            except ValueError:
-                detail = resp.text
+            detail = _extract_error_detail(resp)
             raise RuntimeError(f"Orca slice failed ({resp.status_code}): {detail}")
 
         metadata: dict[str, object] = {}
