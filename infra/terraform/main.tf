@@ -98,7 +98,7 @@ resource "proxmox_virtual_environment_vm" "proxmox-worker-1" {
     datastore_id = "local-lvm"
     file_id      = "local-lvm:vm-9000-disk-0"
     interface    = "scsi0"
-    size         = 15
+    size         = 25
   }
 
   network_device {
@@ -141,7 +141,7 @@ resource "proxmox_virtual_environment_vm" "proxmox-worker-2" {
     datastore_id = "local-lvm"
     file_id      = "local-lvm:vm-9000-disk-0"
     interface    = "scsi0"
-    size         = 15
+    size         = 25
   }
 
   network_device {

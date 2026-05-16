@@ -385,7 +385,11 @@ jobs:
       - name: Deploy to Docker Swarm
         run: |
           # Экспортируем все переменные из .env в окружение
-          export $(grep -v '^#' .env | xargs)
+          # Правильный и безопасный парсинг .env файла
+          set -a
+          source .env
+          set +a
+
 
           # Запускаем деплой (он подхватит переменные, так как они в export)
           docker stack deploy --with-registry-auth -c docker-stack.yml restful-slice

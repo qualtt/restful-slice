@@ -1,9 +1,8 @@
 ---
-- name: Setup NetBird and Docker on all nodes
+- name: Setup NetBird, Docker and Swarm Cluster
   hosts: all
-  become: yes # Выполнять через sudo
+  become: yes
   vars:
-    # ВСТАВЬ СЮДА СВОЙ КЛЮЧ NETBIRD!
     netbird_setup_key: "{{ lookup('env', 'NETBIRD_SETUP_KEY') }}"
     ghcr_token: "{{ lookup('env', 'GHCR_TOKEN') }}"
 
@@ -27,15 +26,12 @@
     - name: Connect to NetBird network
       command: netbird up --setup-key {{ netbird_setup_key }}
       register: netbird_result
-      failed_when: false # Игнорируем ошибку, если уже подключен
+      failed_when: false
 
     # --- УСТАНОВКА DOCKER ---
     - name: Install dependencies for Docker
       apt:
-        name:
-          - ca-certificates
-          - curl
-          - gnupg
+        name: [ca-certificates, curl, gnupg]
         state: present
 
     - name: Download Docker install script
@@ -49,7 +45,7 @@
       args:
         creates: /usr/bin/docker
 
-    - name: Ensure Docker is running and enabled
+    - name: Ensure Docker is running
       systemd:
         name: docker
         state: started
@@ -57,10 +53,10 @@
 
     - name: Log in to GHCR
       shell: echo "{{ ghcr_token }}" | docker login ghcr.io -u qualtt --password-stdin
-      # no_log: true # Чтобы токен не светился в консоли
+      # no_log: true # Раскомментируй в проде, чтобы спрятать токен
       changed_when: false
 
-    # --- ИМЕНОВАНИЕ И МЕТКИ (DO-IT-YOURSELF) ---
+    # --- ИМЕНОВАНИЕ ---
     - name: Set hostname to match inventory name
       hostname:
         name: "{{ inventory_hostname }}"
@@ -71,10 +67,55 @@
         line: "127.0.1.1 {{ inventory_hostname }}"
         state: present
 
-    # Метка для Docker Swarm (применяется только если нода уже в Swarm,
-    # если нет - команда просто выдаст ошибку, которую мы проигнорируем)
-    - name: Apply Docker Swarm labels
-      shell: "docker node update --label-add zone={{ 'compute' if inventory_hostname in groups['proxmox'] else 'edge' }} {{ inventory_hostname }}"
-      delegate_to: manager
+    # =======================================================
+    # МАГИЯ СБОРКИ КЛАСТЕРА (SWARM)
+    # =======================================================
+
+    - name: 1. Leave old Swarm (Hard Reset)
+      command: docker swarm leave --force
       failed_when: false
       changed_when: false
+
+    - name: 2. Get NetBird (wt0) IP address
+      shell: ip -4 addr show wt0 | grep -w inet | awk '{print $2}' | cut -d/ -f1
+      register: wt0_ip
+      changed_when: false
+
+    - name: 3. Initialize Swarm on Manager
+      command: >
+        docker swarm init
+        --advertise-addr {{ wt0_ip.stdout }}
+        --data-path-addr {{ wt0_ip.stdout }}
+      when: inventory_hostname == 'manager'
+
+    - name: 4. Get Swarm Join Token
+      command: docker swarm join-token -q worker
+      when: inventory_hostname == 'manager'
+      register: swarm_token
+      changed_when: false
+
+    - name: 5. Distribute Token and Manager IP
+      set_fact:
+        worker_token: "{{ hostvars['manager']['swarm_token']['stdout'] }}"
+        manager_ip: "{{ hostvars['manager']['wt0_ip']['stdout'] }}"
+      when: inventory_hostname != 'manager'
+
+    - name: 6. Join Swarm on Workers and Gateways
+      command: >
+        docker swarm join
+        --token {{ worker_token }}
+        --advertise-addr {{ wt0_ip.stdout }}
+        --data-path-addr {{ wt0_ip.stdout }}
+        {{ manager_ip }}:2377
+      when: inventory_hostname != 'manager'
+
+    - name: 7. Wait 5 seconds for nodes to register in cluster
+      pause:
+        seconds: 5
+      run_once: true
+
+    - name: 8. Apply Docker Swarm Labels cleanly
+      command: "docker node update --label-add zone={{ 'compute' if item in groups['proxmox'] else 'edge' }} {{ item }}"
+      delegate_to: manager
+      run_once: true
+      loop: "{{ ansible_play_hosts_all }}"
