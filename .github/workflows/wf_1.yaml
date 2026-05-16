@@ -396,23 +396,30 @@ jobs:
       #     cd infra/monitoring && docker stack deploy -c docker-stack-monitor.yml monitoring
       - name: Deploy to Docker Swarm
         run: |
-          # 1. ДЕБАГ: Выводим все КЛЮЧИ из .env файла (скрывая пароли),
+          # 0. ДЕБАГ: Выводим все КЛЮЧИ из .env файла (скрывая пароли),
           # чтобы ты 100% увидел, есть ли там ORDER_DB_USER!
           echo "=== SODERZHIMOE .ENV (SECRETS HIDDEN) ==="
           sed 's/=.*/=***/' .env
           echo "========================================="
 
-          # 1. Пусть Docker Compose прочитает .env и подставит все значения в stack.yml.
-          # Готовый манифест сохраняем в файл stack-resolved.yml
-          docker compose --env-file .env -f docker-stack.yml config > stack-resolved.yml
+          # 1. Загружаем переменные из .env в окружение Bash
+          set -a
+          source .env
+          set +a
 
-          # 2. Деплоим в кластер этот "собранный" манифест!
-          # (Он уже содержит все пароли внутри, поэтому Swarm'у не нужно окружение bash)
+          # 2. Физически подставляем переменные в файл (вместо глючного docker compose config)
+          envsubst < docker-stack.yml > stack-resolved.yml
+
+          # (Опционально) Можешь раскомментировать нижнюю строку, чтобы убедиться,
+          # что пароли реально вписались в файл (потом закомментируй, чтобы не светить в логах!)
+          # cat stack-resolved.yml
+
+          # 3. Деплоим уже собранный манифест со вшитыми паролями
           docker stack deploy --with-registry-auth -c stack-resolved.yml restful-slice
 
-          # 3. Делаем то же самое для мониторинга
+          # 4. Аналогично для мониторинга
           cd infra/monitoring
-          docker compose --env-file ../../.env -f docker-stack-monitor.yml config > stack-resolved-monitor.yml
+          envsubst < docker-stack-monitor.yml > stack-resolved-monitor.yml
           docker stack deploy -c stack-resolved-monitor.yml monitoring
 
       - name: Load MinIO fixtures into Swarm stack
