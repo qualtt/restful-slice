@@ -166,16 +166,17 @@ services:
     image: owasp/modsecurity-crs:nginx-alpine
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "80:8080"
     environment:
       - SEC_RULE_ENGINE=On
+      - PORT=8080
     volumes:
       - ./infra/nginx/default.conf.template:/etc/nginx/templates/conf.d/default.conf.template:ro
       - ./infra/nginx/restful-slice-gateway.conf:/etc/nginx/restful-slice-gateway.conf:ro
     networks:
       - public_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 3
