@@ -22,7 +22,7 @@ services:
           - node.role == manager # БД живет ТОЛЬКО на менеджере (дома)
       resources:
         limits:
-          cpus: '2.0'
+          cpus: "2.0"
           memory: 1G
 
   rabbitmq:
@@ -103,7 +103,7 @@ services:
           - spread: node.id # Равномерно распределяем по воркерам
       resources:
         reservations:
-          cpus: '0.6'
+          cpus: "0.6"
           memory: 600MB
 
   slicer_adapter:
