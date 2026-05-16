@@ -160,6 +160,9 @@ services:
       - backend_net
     deploy:
       replicas: 2
+      placement:
+        constraints:
+          - node.labels.zone == compute
       update_config:
         parallelism: 1
         order: start-first
@@ -228,6 +231,9 @@ services:
       - backend_net
     deploy:
       replicas: 2
+      placement:
+        constraints:
+          - node.labels.zone == compute
       update_config:
         parallelism: 1
         order: start-first
@@ -286,6 +292,9 @@ services:
       - "80:80"
     environment:
       - SEC_RULE_ENGINE=On
+      # Должен совпадать с listen в restful-slice-gateway.conf; иначе /usr/local/bin/healthcheck
+      # проверяет 127.0.0.1:${PORT}/healthz на дефолтном 8080, а nginx слушает только 80.
+      - PORT=80
     configs:
       - source: gateway_nginx_entry
         target: /etc/nginx/templates/conf.d/default.conf.template
