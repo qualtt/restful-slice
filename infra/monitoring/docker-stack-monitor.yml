@@ -13,6 +13,8 @@ services:
         target: /etc/prometheus/prometheus.yml
     networks:
       - monitoring_net
+    ports:
+      - "9090:9090"
     deploy:
       placement:
         constraints: [node.role == manager]
