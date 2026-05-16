@@ -286,6 +286,10 @@ services:
       - "80:80"
     environment:
       - SEC_RULE_ENGINE=On
+    configs:
+      - source: gateway_nginx_conf
+        target: /etc/nginx/templates/conf.d/default.conf.template
+        mode: 0444
     networks:
       - public_net
     deploy:
