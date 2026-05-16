@@ -47,6 +47,27 @@ bash infra/scripts/load-fixtures.sh
 
 Скрипт зеркалит `tests/postman/fixtures/profiles/` в `s3://3d-models/profiles/...`.
 
+## Если стенд поднят через Docker Swarm
+
+`docker stack deploy` создаёт swarm services, поэтому `infra/scripts/load-fixtures.sh`
+не увидит `minio` через `docker compose ps` и не сможет зацепиться за overlay-сеть как
+обычный compose-контейнер.
+
+Для сервера со stack deploy используйте отдельный скрипт:
+
+```bash
+bash infra/scripts/load-fixtures-stack.sh
+```
+
+Если стек развернут не под именем `restful-slice`, передайте имя явно:
+
+```bash
+STACK_NAME=my-stack bash infra/scripts/load-fixtures-stack.sh
+```
+
+Скрипт создаёт временный swarm service в сети `${STACK_NAME}_backend_net`, ждёт готовности
+`minio` и затем зеркалит `tests/postman/fixtures/profiles/` в тот же bucket.
+
 ## Как добавить коллекцию в Postman extension for VS Code
 
 1. Откройте боковую панель `Postman` в VS Code.

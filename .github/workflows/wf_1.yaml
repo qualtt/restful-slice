@@ -389,3 +389,7 @@ jobs:
           # Запускаем деплой (он подхватит переменные, так как они в export)
           docker stack deploy --with-registry-auth -c docker-stack.yml restful-slice
           cd infra/monitoring && docker stack deploy -c docker-stack-monitor.yml monitoring
+
+      - name: Load MinIO fixtures into Swarm stack
+        run: |
+          STACK_NAME=restful-slice bash infra/scripts/load-fixtures-stack.sh
