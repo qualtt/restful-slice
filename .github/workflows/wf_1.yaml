@@ -407,12 +407,21 @@ jobs:
           source .env
           set +a
 
-          # для гетэвэя
+          # Версии для immutable Swarm configs (имена в docker-stack.yml используют ${...}).
+          export BOOTSTRAP_VERSION="$(sha256sum infra/postgres/bootstrap.sql | cut -c1-12)"
           export GATEWAY_CONF_VERSION="$(sha256sum infra/nginx/nginx.conf | cut -c1-12)"
+          echo "BOOTSTRAP_VERSION=$BOOTSTRAP_VERSION"
           echo "GATEWAY_CONF_VERSION=$GATEWAY_CONF_VERSION"
 
-          # 2. Физически подставляем переменные в файл (вместо глючного docker compose config)
-          envsubst < docker-stack.yml > stack-resolved.yml
+          # 2. Подставляем ТОЛЬКО нужные переменные — полный envsubst съедает $ внутри
+          # встроенных shell/python-блоков и ломает YAML.
+          vars='$POSTGRES_USER $POSTGRES_PASSWORD $POSTGRES_DB'
+          vars="$vars "'$RMQ_USER $RMQ_PASSWORD $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD'
+          vars="$vars "'$ORDER_PORT $INVENTORY_PORT'
+          vars="$vars "'$ORDER_DB_USER $ORDER_DB_PASSWORD $ORDER_DB_NAME'
+          vars="$vars "'$INV_DB_USER $INV_DB_PASSWORD $INV_DB_NAME'
+          vars="$vars "'$BOOTSTRAP_VERSION $GATEWAY_CONF_VERSION'
+          envsubst "$vars" < docker-stack.yml > stack-resolved.yml
 
           echo "===== RESOLVED STACK CHECK ====="
 

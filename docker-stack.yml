@@ -335,3 +335,8 @@ configs:
   bootstrap_sql:
     name: restful-slice_bootstrap_sql_${BOOTSTRAP_VERSION}
     file: ./infra/postgres/bootstrap.sql
+
+  # Тот же принцип, что у bootstrap.sql: immutable Swarm config → версия в имени.
+  gateway_nginx_conf:
+    name: restful-slice_gateway_nginx_${GATEWAY_CONF_VERSION}
+    file: ./infra/nginx/nginx.conf
