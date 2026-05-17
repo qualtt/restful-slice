@@ -107,7 +107,7 @@ STACK_NAME=my-stack bash infra/scripts/load-fixtures-stack.sh
 Если `Poll order until priced` падает по таймауту, обычно проблема в стенде:
 
 - profile fixtures не загружены в MinIO;
-- контейнеры ещё не healthy;
+- контейнеры ещё не ready;
 - сломан `slicer_api` или `slicer_adapter`.
 
 ## Опционально через Newman

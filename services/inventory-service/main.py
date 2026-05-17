@@ -33,6 +33,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 router = APIRouter(tags=["Inventory"])
 internal_router = APIRouter(prefix="/api/internal/inventory", tags=["Internal"])
+health_router = APIRouter(tags=["Health"])
 
 stock_db = InventoryStock()
 if not stock_db.db.select("inventory", "1"):
@@ -93,6 +94,47 @@ class ReserveRequest(BaseModel):
 
 class StatusUpdateRequest(BaseModel):
     status: str
+
+
+def _check_schema_and_round_trip() -> dict[str, object]:
+    db = stock_db.db
+    if not hasattr(db, "_connect") or not hasattr(db, "_core_tables_exist"):
+        stock_db.get_stock(1)
+        stock_db.get_available(1)
+        return {"postgres": "ok", "schema": "ok"}
+
+    conn = db._connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            if not db._core_tables_exist(cur):
+                raise RuntimeError("core tables are missing")
+            cur.execute("SELECT material_id, total_grams FROM inventory LIMIT 1")
+            cur.fetchone()
+        return {"postgres": "ok", "schema": "ok"}
+    finally:
+        conn.close()
+
+
+@health_router.get("/health/live")
+async def health_live():
+    return {"status": "healthy"}
+
+
+@health_router.get("/health/ready")
+async def health_ready():
+    try:
+        return {"status": "healthy", **_check_schema_and_round_trip()}
+    except Exception as exc:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "error": str(exc)[:500]},
+        )
+
+
+@health_router.get("/health")
+async def health():
+    return await health_ready()
 
 
 MATERIALS_DB = [
@@ -322,3 +364,4 @@ async def update_reservation_status(orderId: UUID4, payload: StatusUpdateRequest
 
 app.include_router(router)
 app.include_router(internal_router)
+app.include_router(health_router)

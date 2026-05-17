@@ -105,3 +105,13 @@ def test_inventory_profile_detail_for_high_quality():
     assert body["displayName"] == "PETG Высокое качество (K1C)"
     assert body["process"]["orcaProcessId"] == "0.12mm_fine_creality_k1c_0.4_nozzle"
     assert body["material"]["materialType"] == "PETG"
+
+
+def test_inventory_health_ready():
+    inventory_main = load_inventory_app()
+    client = TestClient(inventory_main.app)
+
+    response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "healthy"

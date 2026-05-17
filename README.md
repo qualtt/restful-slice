@@ -376,6 +376,8 @@ bash infra/scripts/load-fixtures.sh
 
 ### Проверка health
 
+- `GET /health/live` - контейнер жив.
+- `GET /health/ready` - сервис готов принимать трафик.
 - Gateway: `http://localhost/health`
 - Gateway internal health: `http://localhost/healthz`
 - Order docs: `http://localhost/api/orders/docs`

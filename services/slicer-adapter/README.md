@@ -12,7 +12,7 @@
 4. Вызов Orca: `process_profile` уходит в multipart как **`presetProfile`** (имя поля API).
 5. Успех → **`slice.completed`** в **`slicing.results`**; ошибка → **`slice.failed`** (тот же exchange/routing по умолчанию через имя очереди).
 
-HTTP: **`GET /health`** — проверяет доступность **RabbitMQ** (короткое AMQP-подключение и `queue_declare` для `slicing.jobs`). При ошибке ответ **503** и `{"status": "unhealthy", "rabbitmq": "..."}`. Воркер по-прежнему в фоновом потоке.
+HTTP: **`GET /health/live`** — только жив ли worker-thread. **`GET /health/ready`** и алиас **`GET /health`** проверяют RabbitMQ, MinIO, Orca API и состояние воркера. При ошибке ответ **503**.
 
 ## Переменные окружения
 

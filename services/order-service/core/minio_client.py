@@ -27,6 +27,10 @@ class OrderMinioClient:
         if not self._client.bucket_exists(self._bucket):
             self._client.make_bucket(self._bucket)
 
+    def check_bucket_access(self) -> None:
+        if not self._client.bucket_exists(self._bucket):
+            raise RuntimeError(f"Bucket {self._bucket} is not available")
+
     def upload_stl(self, file_id: str, filename: str, data: bytes) -> str:
         object_key = f"stl/orders/{file_id}/{filename}"
         self._client.put_object(
