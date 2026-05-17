@@ -8,10 +8,30 @@ const MAX_QUEUE_SIZE = 600;
 const CONSENT_VERSION = "2026-05";
 
 function randomId(): string {
-  if (crypto?.randomUUID) {
-    return crypto.randomUUID();
+  const c = typeof globalThis.crypto !== "undefined" ? globalThis.crypto : undefined;
+  if (!c?.getRandomValues) {
+    return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
   }
-  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+  try {
+    if (typeof c.randomUUID === "function") {
+      return c.randomUUID();
+    }
+  } catch {
+    // В небезопасном контексте (голый HTTP по IP/домену без TLS) Chromium часто режет randomUUID —
+    // см. ниже ручную сборку v4 через getRandomValues (она на HTTP доступна).
+  }
+
+  const bytes = new Uint8Array(16);
+  c.getRandomValues(bytes);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+
+  let hex = "";
+  for (const b of bytes) {
+    hex += b.toString(16).padStart(2, "0");
+  }
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function getSessionId(): string {

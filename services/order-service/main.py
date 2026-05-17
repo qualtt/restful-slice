@@ -328,13 +328,31 @@ async def cancel_order(orderId: UUID4):
 
 @telemetry_router.post("/events", status_code=202)
 async def receive_telemetry_events(payload: TelemetryBatchRequest):
+    from uuid import UUID, uuid4
+
     from core.database import db_stub
 
+    def record_id_uuid(raw_id: str) -> str:
+        try:
+            UUID(raw_id)
+            return raw_id
+        except ValueError:
+            # Старый фронт на http:// мог слать nanoid-подобные id при недоступном randomUUID().
+            fallback = str(uuid4())
+            logger.warning(
+                "Telemetry event id %r not valid UUID — using server id %s",
+                raw_id[:64],
+                fallback,
+            )
+            return fallback
+
+    saved = 0
+    failed = 0
     for event in payload.events:
         try:
             db_stub.insert(
                 table="telemetry_events",
-                record_id=event.id,
+                record_id=record_id_uuid(event.id),
                 data={
                     "session_id": event.sessionId,
                     "event_name": event.name,
@@ -345,10 +363,25 @@ async def receive_telemetry_events(payload: TelemetryBatchRequest):
                     "client_ts": event.ts,
                 },
             )
+            saved += 1
         except Exception:
+            failed += 1
             logger.exception("Failed to insert telemetry event %s", event.id)
 
-    return {"status": "accepted", "processed": len(payload.events)}
+    if failed:
+        logger.error(
+            "telemetry batch: processed=%s saved=%s failed=%s",
+            len(payload.events),
+            saved,
+            failed,
+        )
+
+    return {
+        "status": "accepted",
+        "processed": len(payload.events),
+        "saved": saved,
+        "failed": failed,
+    }
 
 
 app.include_router(router)
