@@ -178,6 +178,11 @@ jobs:
             sleep 2
           done
 
+          echo "Waiting for SPA shell via gateway..."
+          until curl -fsS http://localhost/ | grep -q 'id="root"'; do
+            sleep 2
+          done
+
       - name: Wait for slicer services on main
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -299,6 +304,11 @@ jobs:
             context: ./services/slicer-adapter
             target: production
             cache_scope: slicer-adapter
+          - id: frontend
+            image_name: frontend
+            context: ./apps/frontend
+            target: ""
+            cache_scope: frontend
     # needs:
     #  - security_sast
     #  - api_postman
@@ -333,6 +343,19 @@ jobs:
           tags: ghcr.io/${{ env.REPO_LC }}/${{ matrix.image_name }}:latest
           cache-from: type=gha,scope=${{ matrix.cache_scope }}
           cache-to: ${{ github.event_name == 'push' && format('type=gha,mode=max,scope={0}', matrix.cache_scope) || '' }}
+
+      - name: Build image — frontend (SPA)
+        if: matrix.id == 'frontend'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/frontend
+          file: ./apps/frontend/Dockerfile
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: ghcr.io/${{ env.REPO_LC }}/frontend:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max,scope=frontend' || '' }}
 
       - name: Build image — postgres (single-stage)
         if: matrix.id == 'postgres'
@@ -440,6 +463,8 @@ jobs:
           grep -A5 "postgres:" stack-resolved.yml
 
           grep -A20 "order_service:" stack-resolved.yml
+
+          grep -A15 "frontend:" stack-resolved.yml
 
           grep "POSTGRES_USER" stack-resolved.yml
           grep "ORDER_DB_USER" stack-resolved.yml

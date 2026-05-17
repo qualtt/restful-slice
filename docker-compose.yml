@@ -160,6 +160,15 @@ services:
       minio:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    image: restful-slice-frontend:latest
+    restart: unless-stopped
+    networks:
+      - public_net
+
   # --- API GATEWAY & WAF ---
   gateway:
     image: owasp/modsecurity-crs:nginx-alpine
@@ -181,6 +190,7 @@ services:
       retries: 5
       start_period: 90s
     depends_on:
+      - frontend
       - order_service
       - inventory_service
 

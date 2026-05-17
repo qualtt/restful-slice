@@ -294,6 +294,23 @@ services:
         preferences:
           - spread: node.id
 
+  # Статический фронт: рядом с gateway на edge — отдаёт SPA на `/`, API остаются на том же порту 80.
+  frontend:
+    image: ghcr.io/qualtt/restful-slice/frontend:latest
+    networks:
+      - public_net
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.labels.zone == edge
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: pause
+      restart_policy:
+        condition: on-failure
+
   gateway:
     image: owasp/modsecurity-crs:nginx-alpine
     ports:
