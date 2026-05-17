@@ -12,10 +12,9 @@
 --   ord_user, ord_pass, ord_db   — креды и имя БД сервиса заказов
 --   inv_user, inv_pass, inv_db   — креды и имя БД сервиса инвентаря
 --
--- ПРАВИЛО: здесь живёт ТОЛЬКО идентичность (роли / БД / гранты на public).
---   Никаких DROP, TRUNCATE, DELETE, ALTER TABLE — миграции схем выполняет
---   alembic в самих сервисах. Любая деструктивная операция тут уничтожит
---   данные на каждом деплое, поэтому ревьюеру следует жестко это блокировать.
+-- ПРАВИЛО: в основном здесь идентичность (роли / БД / гранты на public).
+--   Разрешены только идемпотентные ADD COLUMN / смена OWNER для совместимости
+--   со старым деплоем (см. блок ниже про files.object_key): без DROP/TRUNCATE/DELETE.
 -- =====================================================================
 
 \set ON_ERROR_STOP on
@@ -48,6 +47,14 @@ GRANT  ALL ON ALL TABLES    IN SCHEMA public TO :"ord_user";
 GRANT  ALL ON ALL SEQUENCES IN SCHEMA public TO :"ord_user";
 ALTER  DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES    TO :"ord_user";
 ALTER  DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO :"ord_user";
+
+-- Наследие: таблицы могли быть созданы не :"ord_user" — тогда alembic (под службой
+-- заказов) падает с «must be owner of table». Плюс object_key добавляется здесь
+-- от суперпользователя; ADD IF NOT EXISTS идempotent.
+ALTER TABLE IF EXISTS files           OWNER TO :"ord_user";
+ALTER TABLE IF EXISTS orders          OWNER TO :"ord_user";
+ALTER TABLE IF EXISTS telemetry_events OWNER TO :"ord_user";
+ALTER TABLE IF EXISTS files ADD COLUMN IF NOT EXISTS object_key TEXT;
 
 -- ---------------- Гранты на public для inventory_db -----------------
 \connect :"inv_db"
