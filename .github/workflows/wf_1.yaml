@@ -454,8 +454,8 @@ jobs:
           docker network inspect "$RESTFUL_BACKEND_NET_NAME" >/dev/null 2>&1 \
             || docker network create -d overlay --attachable "$RESTFUL_BACKEND_NET_NAME"
 
-          # Spilo: суперпользователь Postgres (db_bootstrap идёт теми же учётными данными через HAProxy).
-          export POSTGRES_SUPERUSER="${POSTGRES_SUPERUSER:-$POSTGRES_USER}"
+          # Spilo/post_init требует роль postgres — не подставляйте сюда POSTGRES_USER приложения (часто postgres_admin).
+          export POSTGRES_SUPERUSER="${POSTGRES_SUPERUSER:-postgres}"
           export POSTGRES_SUPERUSER_PASSWORD="${POSTGRES_SUPERUSER_PASSWORD:-$POSTGRES_PASSWORD}"
 
           export POSTGRES_HA_HAPROXY_CFG_VERSION="$(sha256sum infra/patroni/haproxy.cfg | cut -c1-12)"
@@ -469,7 +469,8 @@ jobs:
 
           # 2. Подставляем ТОЛЬКО нужные переменные — полный envsubst съедает $ внутри
           # встроенных shell/python-блоков и ломает YAML.
-          vars='$POSTGRES_USER $POSTGRES_PASSWORD'
+          vars='$POSTGRES_SUPERUSER $POSTGRES_SUPERUSER_PASSWORD'
+          vars="$vars "'$POSTGRES_USER $POSTGRES_PASSWORD'
           vars="$vars "'$RMQ_USER $RMQ_PASSWORD $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD $MINIO_BUCKET_NAME'
           vars="$vars "'$ORDER_PORT $INVENTORY_PORT'
           vars="$vars "'$ORDER_DB_USER $ORDER_DB_PASSWORD $ORDER_DB_NAME'
@@ -485,7 +486,7 @@ jobs:
 
           grep -A15 "frontend:" stack-resolved.yml | head -20
 
-          # После envsubst переменная POSTGRES_USER уже не в тексте файла — смотреть резолв PGUSER/PGPASSWORD.
+          # После envsubst смотреть PGUSER/PGPASSWORD у db_bootstrap (POSTGRES_SUPERUSER).
           grep "PGUSER=" stack-resolved.yml
           grep "ORDER_DB_USER" stack-resolved.yml
 

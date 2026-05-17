@@ -9,7 +9,8 @@ version: '3.8'
 #   docker node update --label-add patroni.member=b WORKER_NODE_1
 #   docker node update --label-add patroni.member=c WORKER_NODE_2
 #
-# Депой (из корня репозитория); в shell нужны POSTGRES_SUPERUSER_* и сеть приложения:
+# Депой (из корня репозитория); в shell нужны POSTGRES_SUPERUSER_* и сеть приложения.
+# Спило: имя суперпользователя по умолчанию postgres (post_init шьёт объект «role postgres»), см. README.
 #   export RESTFUL_BACKEND_NET_NAME="${RESTFUL_BACKEND_NET_NAME:-restful-slice_backend_net}"
 #   export POSTGRES_SUPERUSER_PASSWORD="..."   # как POSTGRES_PASSWORD / из .env
 #   docker stack deploy --with-registry-auth -c infra/patroni/stack.yml postgres-ha
@@ -104,7 +105,8 @@ services:
       # etcd 3.5 не отдаёт HTTP API v2 — не используйте ETCD_HOSTS (Spilo тогда ждёт /v2 → 404).
       # Задаём DCS Patroni как etcd3 (gRPC), см. https://github.com/zalando/spilo/issues/1103
       - 'SPILO_CONFIGURATION={"etcd3":{"hosts":["postgres-ha_etcd0:2379","postgres-ha_etcd1:2379","postgres-ha_etcd2:2379"]}}'
-      - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
+      # Спilo post_init.sh (Zalandos) требует роль postgres; при имени только postgres_admin init падает.
+      - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres}
       - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD}
       - ALLOW_NOSSL=true
     volumes:
@@ -127,7 +129,8 @@ services:
       - PATRONI_NAME=spilo-b
       - 'PATRONI_TAGS={"failover_priority":55}'
       - 'SPILO_CONFIGURATION={"etcd3":{"hosts":["postgres-ha_etcd0:2379","postgres-ha_etcd1:2379","postgres-ha_etcd2:2379"]}}'
-      - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
+      # Спilo post_init.sh (Zalandos) требует роль postgres; при имени только postgres_admin init падает.
+      - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres}
       - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD}
       - ALLOW_NOSSL=true
     volumes:
@@ -150,7 +153,8 @@ services:
       - PATRONI_NAME=spilo-c
       - 'PATRONI_TAGS={"failover_priority":10}'
       - 'SPILO_CONFIGURATION={"etcd3":{"hosts":["postgres-ha_etcd0:2379","postgres-ha_etcd1:2379","postgres-ha_etcd2:2379"]}}'
-      - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
+      # Спilo post_init.sh (Zalandos) требует роль postgres; при имени только postgres_admin init падает.
+      - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres}
       - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD}
       - ALLOW_NOSSL=true
     volumes:

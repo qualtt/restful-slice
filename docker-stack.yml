@@ -47,8 +47,9 @@ services:
       # RW через HAProxy стека postgres-ha — Patroni шлёт на текущего primary.
       - PGHOST=postgres-ha_pg_haproxy
       - PGPORT=5432
-      - PGUSER=${POSTGRES_USER}
-      - PGPASSWORD=${POSTGRES_PASSWORD}
+      # Spilo PGUSER_SUPERUSER (имя должно быть postgres — см. README patroni). В CI задаётся рядом с деплоем postgres-ha.
+      - PGUSER=${POSTGRES_SUPERUSER}
+      - PGPASSWORD=${POSTGRES_SUPERUSER_PASSWORD}
       # На свежем Spilo всегда есть служебная база postgres; bootstrap.sql только создаёт роли и app-БД.
       - PGDATABASE=postgres
     networks:

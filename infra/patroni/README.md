@@ -39,22 +39,21 @@ docker node update --label-add patroni.member=c ИМЯ_ВОРКЕРА_2
 
 Сервис **`pg_haproxy`** закреплён на **`node.role == manager`** (лёгкий прокси; данные там не живут).
 
-## Переменные для Spilo (совпадают с суперпользователем bootstrap)
+## Переменные для Spilo (и для `db_bootstrap` через HAProxy)
 
-Под **`postgres_admin`** понимается тот пользователь Postgres, который в `.env`/секретах совпадает с **`POSTGRES_USER`** приложения **`db_bootstrap`** (можно переопределить через отдельные переменные).
+Спило после `initdb` запускает **`/scripts/post_init.sh`**: там ожидается роль **`postgres`**. Если задать **`PGUSER_SUPERUSER=postgres_admin`**, постинициализация падает (`role "postgres" does not exist`), кластер не поднимается — дальше 502 при прокси на приложения без БД.
+
+**Имя суперпользователя HA-кластера** задавайте как **`postgres`** (или явно переопределите редко, только если понимаете последствия). Пароль — **`POSTGRES_SUPERUSER_PASSWORD`** (в CI удобно совпадает с **`POSTGRES_PASSWORD`**, имена приложений типа **`postgres_admin`** остаются для отдельных ролей в `bootstrap.sql`).
 
 ```bash
 export RESTFUL_BACKEND_NET_NAME='restful-slice_backend_net'
-export POSTGRES_SUPERUSER='postgres_admin'          # часто совпадает с POSTGRES_USER
-export POSTGRES_SUPERUSER_PASSWORD='*****'
+export POSTGRES_SUPERUSER='postgres'
+export POSTGRES_SUPERUSER_PASSWORD='*****'   # тот же, что задаёте Спило / Patroni
 
 # Альтернатива: см. infra/patroni/stack.env.example
 ```
 
-Если нужны отдельные креды суперпользователя Postgres в Swarm-only, задаёте в `.env`:
-
-- `POSTGRES_SUPERUSER`
-- `POSTGRES_SUPERUSER_PASSWORD`
+В `.env` для **`restful-slice`** нужны те же экспорты перед `docker stack deploy` **обоих** стеков; **`db_bootstrap`** подключается как `${POSTGRES_SUPERUSER}` / `${POSTGRES_SUPERUSER_PASSWORD}` (`docker-stack.yml`).
 
 ## Деплой HA-стека
 
@@ -63,7 +62,7 @@ export POSTGRES_SUPERUSER_PASSWORD='*****'
 ```bash
 set -a && [ -f .env ] && . ./.env; set +a
 export RESTFUL_BACKEND_NET_NAME="${RESTFUL_BACKEND_NET_NAME:-restful-slice_backend_net}"
-export POSTGRES_SUPERUSER="${POSTGRES_SUPERUSER:-$POSTGRES_USER}"
+export POSTGRES_SUPERUSER="${POSTGRES_SUPERUSER:-postgres}"
 export POSTGRES_SUPERUSER_PASSWORD="${POSTGRES_SUPERUSER_PASSWORD:-$POSTGRES_PASSWORD}"
 export POSTGRES_HA_HAPROXY_CFG_VERSION="${POSTGRES_HA_HAPROXY_CFG_VERSION:-$(sha256sum infra/patroni/haproxy.cfg | cut -c1-12)}"
 ```

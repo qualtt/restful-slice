@@ -13,7 +13,7 @@ if [ -f .env ]; then
 fi
 
 export RESTFUL_BACKEND_NET_NAME="${RESTFUL_BACKEND_NET_NAME:-restful-slice_backend_net}"
-export POSTGRES_SUPERUSER="${POSTGRES_SUPERUSER:-${POSTGRES_USER:-}}"
+export POSTGRES_SUPERUSER="${POSTGRES_SUPERUSER:-postgres}"
 export POSTGRES_SUPERUSER_PASSWORD="${POSTGRES_SUPERUSER_PASSWORD:-${POSTGRES_PASSWORD:-}}"
 
 # Имя Swarm config HAProxy версионируется — содержимое config в Swarm нельзя обновить.
