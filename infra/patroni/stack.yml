@@ -16,9 +16,10 @@ version: '3.8'
 
 services:
   etcd0:
-    image: docker.io/bitnami/etcd:3.5.17
+    # Тег docker.io/bitnami/etcd:3.5.17 недоступен на Hub; см. infra/patroni/README.md — образ etcd.io.
+    image: quay.io/coreos/etcd:v3.5.17
     environment:
-      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_DATA_DIR=/etcd-data
       - ETCD_NAME=etcd0
       - ETCD_INITIAL_CLUSTER_TOKEN=restful-ha-etcd-cluster
       - ETCD_INITIAL_CLUSTER=etcd0=http://etcd0:2380,etcd1=http://etcd1:2380,etcd2=http://etcd2:2380
@@ -30,7 +31,7 @@ services:
       - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd0:2380
     hostname: etcd0
     volumes:
-      - etcd_data_0:/bitnami/etcd
+      - etcd_data_0:/etcd-data
     networks:
       - patroni_int
     deploy:
@@ -42,9 +43,9 @@ services:
         condition: on-failure
 
   etcd1:
-    image: docker.io/bitnami/etcd:3.5.17
+    image: quay.io/coreos/etcd:v3.5.17
     environment:
-      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_DATA_DIR=/etcd-data
       - ETCD_NAME=etcd1
       - ETCD_INITIAL_CLUSTER_TOKEN=restful-ha-etcd-cluster
       - ETCD_INITIAL_CLUSTER=etcd0=http://etcd0:2380,etcd1=http://etcd1:2380,etcd2=http://etcd2:2380
@@ -56,7 +57,7 @@ services:
       - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd1:2380
     hostname: etcd1
     volumes:
-      - etcd_data_1:/bitnami/etcd
+      - etcd_data_1:/etcd-data
     networks:
       - patroni_int
     deploy:
@@ -68,9 +69,9 @@ services:
         condition: on-failure
 
   etcd2:
-    image: docker.io/bitnami/etcd:3.5.17
+    image: quay.io/coreos/etcd:v3.5.17
     environment:
-      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_DATA_DIR=/etcd-data
       - ETCD_NAME=etcd2
       - ETCD_INITIAL_CLUSTER_TOKEN=restful-ha-etcd-cluster
       - ETCD_INITIAL_CLUSTER=etcd0=http://etcd0:2380,etcd1=http://etcd1:2380,etcd2=http://etcd2:2380
@@ -82,7 +83,7 @@ services:
       - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd2:2380
     hostname: etcd2
     volumes:
-      - etcd_data_2:/bitnami/etcd
+      - etcd_data_2:/etcd-data
     networks:
       - patroni_int
     deploy:

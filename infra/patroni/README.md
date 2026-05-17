@@ -89,6 +89,20 @@ done
 
 Если не помогло — для нужного члена циклически **`scale=0`** и **`scale=1`** (данные etcd на томах не трогаются; если задача так и ни разу не была `Running`, потерять нечего).
 
+### Образ etcd: `docker.io/bitnami/etcd:… not found`
+
+Тег **`bitnami/etcd:3.5.17`** (и многие старые теги) **больше не отдаются** с Docker Hub — отсюда `failed to resolve reference … not found`. В манифесте используется официальный образ проекта etcd: **`quay.io/coreos/etcd:v3.5.17`** ([документация](https://etcd.io/docs/v3.5/op-guide/container/)).
+
+Перед деплоем на каждую ноду **a / b / c** проверь pull:
+
+```bash
+docker pull quay.io/coreos/etcd:v3.5.17
+```
+
+Альтернатива того же патча — **`gcr.io/etcd-development/etcd:v3.5.17`** (если у вас есть доступ к Artifact Registry/Google, а до Quay — нет).
+
+Том etcd в стеке смонтирован в **`/etcd-data`** (`ETCD_DATA_DIR`). Если раньше крутился **Bitnami**, старый layout данных в томах может быть несовместим — после остановки стека при необходимости **удали только пустые/тестовые** named volumes etcd и подними заново (см. раздел ниже).
+
 Проверка лидера (любая задача с Spilo или HAProxy на overlay `patroni_int`):
 
 ```bash
@@ -120,4 +134,5 @@ docker exec -it "$(docker ps -qf name=postgres-ha_patroni_spilo_a | head -1)" ba
 
 ## Образ и версии
 
-Закреплено **`ghcr.io/zalando/spilo-15:3.2-p1`**. Обновление — по [releases Spilo](https://github.com/zalando/spilo/releases).
+- **PostgreSQL/Patroni:** **`ghcr.io/zalando/spilo-15:3.2-p1`**. Обновление — по [releases Spilo](https://github.com/zalando/spilo/releases).
+- **etcd:** **`quay.io/coreos/etcd:v3.5.17`** — тот же минор патча, без Bitnami.
