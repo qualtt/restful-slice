@@ -1,61 +1,81 @@
 # restful-slice
 
-Headless platform for 3D print order intake, slicing orchestration, material reservation, and lightweight operator visibility.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11-3776AB?style=flat&logo=python&logoColor=white" alt="Python"/>
+  <img src="https://img.shields.io/badge/FastAPI-Framework-05998b?style=flat&logo=fastapi&logoColor=white" alt="FastAPI"/>
+  <img src="https://img.shields.io/badge/Nginx-Reverse_Proxy-009639?style=flat&logo=nginx&logoColor=white" alt="Nginx"/>
+  <img src="https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=flat&logo=postgresql&logoColor=white" alt="PostgreSQL"/>
+  <img src="https://img.shields.io/badge/RabbitMQ-Message_Broker-FF6600?style=flat&logo=rabbitmq&logoColor=white" alt="RabbitMQ"/>
+  <img src="https://img.shields.io/badge/MinIO-S3_Storage-C72E49?style=flat&logo=minio&logoColor=white" alt="MinIO"/>
+  <img src="https://img.shields.io/badge/Docker-Containerization-2496ED?style=flat&logo=docker&logoColor=white" alt="Docker"/>
+  <img src="https://img.shields.io/badge/Linter-Ruff-D7FF64?style=flat&logo=python&logoColor=black" alt="Ruff"/>
+  <img src="https://img.shields.io/badge/Pre--commit-Enabled-fab040?style=flat&logo=pre-commit&logoColor=white" alt="Pre-commit"/>
+  <img src="https://img.shields.io/badge/Code_Style-Black-000000?style=flat" alt="Black"/>
+  <img src="https://img.shields.io/badge/License-BSD-yellow.svg" alt="License BSD"/>
+</p>
+<p align="center">
+  <img src="https://img.shields.io/badge/Works_on-My_Machine-brightgreen?style=flat" alt="Works on my machine"/>
+  <img src="https://img.shields.io/badge/Friday_Deploy-Enabled-critical?style=flat&logo=fire" alt="Friday Deploy"/>
+  <img src="https://img.shields.io/badge/Powered_by-Coffee_%26_Pain-6F4E37?style=flat" alt="Powered by Coffee and Pain"/>
+  <img src="https://img.shields.io/badge/Maintained%3F-Mostly-orange?style=flat" alt="Maintained"/>
+</p>
 
-## Overview
+Headless-платформа для приёма заказов на 3D-печать, асинхронной нарезки моделей, резерва материалов и просмотра статусов в браузере.
 
-`restful-slice` combines a small React dashboard, two FastAPI business services, an asynchronous slicing worker, and infrastructure for file storage, messaging, and deployment.
+## Обзор
 
-The current flow is:
+`restful-slice` объединяет React-дашборд, два FastAPI-сервиса, асинхронный воркер нарезки и инфраструктуру для файлов, очередей, БД и деплоя.
 
-1. Upload a `STL`, `3MF`, or `STEP` model.
-2. Create an order with a selected print profile.
-3. Send a slicing job through RabbitMQ.
-4. Slice the model through `slicer-api` / Orca.
-5. Store generated `G-code` in MinIO.
-6. Reserve material and calculate price in `inventory-service`.
-7. Expose order status and slicing result through REST.
+Текущий поток такой:
 
-## What The Repository Contains
+1. Загрузить модель `STL`, `3MF` или `STEP`.
+2. Создать заказ с выбранным print profile.
+3. Отправить задачу на нарезку через RabbitMQ.
+4. Нарезать модель через `slicer-api` / Orca.
+5. Сохранить `G-code` в MinIO.
+6. Зарезервировать материал и посчитать цену в `inventory-service`.
+7. Отдать статус и результат через REST.
 
-- `apps/frontend`: React + Vite dashboard for upload, profile selection, order list, and consent-based telemetry.
-- `services/order-service`: order intake, file metadata, RabbitMQ publishing, MinIO upload, result consumption, telemetry ingestion.
-- `services/inventory-service`: materials catalog API, print profile catalog, stock reservation, pricing.
-- `services/slicer-adapter`: worker that consumes slice jobs, downloads assets from MinIO, calls `slicer-api`, uploads `G-code`, publishes results.
-- `infra/`: local Postgres bootstrap, Nginx gateway config, monitoring, Swarm/Patroni deployment assets, helper scripts.
-- `tests/postman`: versioned Postman/Newman API and E2E collections with fixture profiles.
-- `docs/`: OpenAPI/AsyncAPI contracts and project notes.
+## Что лежит в репозитории
 
-## Current Capabilities
+- `apps/frontend` - React + Vite дашборд для загрузки моделей, выбора профиля, просмотра заказов и consent-based telemetry.
+- `services/order-service` - приём файлов и заказов, публикация в RabbitMQ, загрузка в MinIO, приём результатов, telemetry ingestion.
+- `services/inventory-service` - каталог материалов и профилей, резервирование, pricing.
+- `services/slicer-adapter` - воркер, который читает задачи, качает файлы из MinIO, вызывает `slicer-api`, публикует результат.
+- `infra/` - локальный Postgres bootstrap, nginx gateway, monitoring, Swarm/Patroni assets и helper scripts.
+- `tests/postman` - versioned Postman/Newman коллекции и fixture profiles.
+- `docs/` - OpenAPI/AsyncAPI контракты и заметки по проекту.
 
-- Upload model files up to `100 MB` via `POST /api/orders/files`.
-- Accept `STL`, `3MF`, `STEP`, and `STP` extensions.
-- Create orders through a two-step API: upload file, then create order with `profileId`.
-- Persist file metadata and order state in PostgreSQL.
-- Store source models and generated `G-code` in MinIO.
-- Push slicing requests to `slicing.jobs` and read results from `slicing.results`.
-- Reserve filament and calculate final price after successful slicing.
-- Track order lifecycle states: `pending`, `slicing`, `priced`, `confirmed`, `printing`, `completed`, `failed`, `cancelled`.
-- Expose profile and material catalog APIs from `inventory-service`.
-- Provide a browser dashboard with periodic order refresh and profile-driven upload flow.
-- Collect client telemetry only after explicit consent, then batch it into `order-service`.
-- Run local stacks with `docker compose` and production-like stacks with Docker Swarm.
+## Возможности
 
-## Tech Stack
+- Загрузка моделей до `100 MB` через `POST /api/orders/files`.
+- Поддержка `STL`, `3MF`, `STEP` и `STP`.
+- Создание заказа в два шага: загрузка файла, затем `POST /api/orders` с `profileId`.
+- Хранение метаданных файлов и статусов заказов в PostgreSQL.
+- Хранение исходников и `G-code` в MinIO.
+- Очереди `slicing.jobs` и `slicing.results`.
+- Резервирование filament и расчёт финальной цены после успешной нарезки.
+- Статусы заказа: `pending`, `slicing`, `priced`, `confirmed`, `printing`, `completed`, `failed`, `cancelled`.
+- REST-каталоги профилей и материалов из `inventory-service`.
+- Дашборд с автообновлением заказов и выбором профиля перед upload.
+- Consent-based telemetry с батчевой отправкой в `order-service`.
+- Локальный запуск через `docker compose` и production-like запуск через Docker Swarm.
+
+## Стек
 
 - Backend: `FastAPI`, `Pydantic v2`, `psycopg`, `Alembic`
 - Frontend: `React 18`, `TypeScript`, `Vite`, `TanStack Query`
-- Messaging: `RabbitMQ`
-- Object storage: `MinIO`
-- Databases: `PostgreSQL 15`
-- Gateway: `Nginx` on top of `owasp/modsecurity-crs`
-- Slicing path: `slicer-api` + Orca Slicer
+- Очереди: `RabbitMQ`
+- Хранилище: `MinIO`
+- БД: `PostgreSQL 15`
+- Gateway: `Nginx` + `owasp/modsecurity-crs`
+- Нарезка: `slicer-api` + Orca Slicer
 - CI/CD: `GitHub Actions`, `Newman`, `Trivy`, `Bandit`, `Codecov`
-- Production deployment: `Docker Swarm`, optional HA Postgres with `Patroni` / `Spilo` / `HAProxy`
+- Прод: `Docker Swarm`, опционально `Patroni` / `Spilo` / `HAProxy`
 
-## System Architecture
+## Архитектура
 
-The architecture is easier to read if you separate it into three lanes: entry layer, business layer, and async slicing layer.
+Так читать проще: сначала edge-слой, потом бизнес-сервисы, потом асинхронную нарезку.
 
 ```mermaid
 flowchart LR
@@ -64,7 +84,7 @@ flowchart LR
     classDef async fill:#fff1dd,stroke:#9a5b00,stroke-width:1.5px,color:#111;
     classDef data fill:#f6eaff,stroke:#6f42c1,stroke-width:1.5px,color:#111;
 
-    User[User or API client]:::edge --> Gateway[Gateway<br/>Nginx + ModSecurity]:::edge
+    User[Пользователь / API client]:::edge --> Gateway[Gateway<br/>Nginx + ModSecurity]:::edge
     Gateway --> Frontend[Frontend SPA<br/>React + Vite]:::edge
     Gateway --> OrderSvc[Order Service<br/>FastAPI]:::app
     Gateway --> InventorySvc[Inventory Service<br/>FastAPI]:::app
@@ -81,12 +101,12 @@ flowchart LR
     OrderSvc --> InventorySvc
 ```
 
-## Order Processing Flow
+## Поток заказа
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Gateway
+    participant Client as Клиент
+    participant Gateway as Gateway
     participant Order as Order Service
     participant MinIO
     participant MQ as RabbitMQ
@@ -117,57 +137,57 @@ sequenceDiagram
     Order-->>Client: status=priced or failed
 ```
 
-## Service Responsibilities
+## Роли сервисов
 
 ### Gateway
 
-- Terminates HTTP on port `80`.
-- Proxies `/api/orders` and `/api/telemetry` to `order_service:8080`.
-- Proxies `/api/inventory` to `inventory_service:8081`.
-- Proxies `/` and `/assets/*` to the frontend container.
-- Includes security headers and ModSecurity CRS.
+- Принимает HTTP на порту `80`.
+- Проксирует `/api/orders` и `/api/telemetry` в `order_service:8080`.
+- Проксирует `/api/inventory` в `inventory_service:8081`.
+- Отдаёт SPA и `/assets/*` из frontend-контейнера.
+- Добавляет security headers и ModSecurity CRS.
 
 ### Frontend
 
-- Single-page dashboard for upload and order monitoring.
-- Uses `TanStack Query` for profile and order fetching.
-- Polls the order list every `8s`.
-- Sends consent-gated telemetry batches to `/api/telemetry/events`.
+- Одностраничный dashboard для загрузки и мониторинга заказов.
+- Использует `TanStack Query` для заказов и профилей.
+- Обновляет список заказов каждые `8s`.
+- Отправляет telemetry только после явного consent.
 
 ### order-service
 
-- Hosts the public order API.
-- Saves file metadata and order state in `orders_db`.
-- Uploads model binaries to MinIO.
-- Publishes `slice.requested`.
-- Consumes `slice.completed` and `slice.failed`.
-- Calls the internal inventory reservation endpoint after successful slicing.
-- Stores telemetry events in PostgreSQL.
+- Публичный API заказов.
+- Сохраняет метаданные файлов и состояние заказов в `orders_db`.
+- Загружает модели в MinIO.
+- Публикует `slice.requested`.
+- Читает `slice.completed` и `slice.failed`.
+- После успешной нарезки вызывает внутренний inventory reserve API.
+- Пишет telemetry events в PostgreSQL.
 
 ### inventory-service
 
-- Exposes read APIs for print profiles and materials.
-- Tracks physical stock and active reservations in `inventory_db`.
-- Calculates price as `weight_grams * cost_per_gram * markupPercent`.
-- Confirms or cancels reservations through internal endpoints.
+- Даёт read APIs для профилей и материалов.
+- Хранит stock и reservations в `inventory_db`.
+- Считает цену как `weight_grams * cost_per_gram * markupPercent`.
+- Подтверждает или отменяет резервы через internal endpoints.
 
 ### slicer-adapter
 
-- Runs a background RabbitMQ consumer.
-- Downloads the model and three profile JSON files from MinIO.
-- Calls `slicer-api` over HTTP.
-- Validates that the response body is actual `G-code`.
-- Uploads generated `G-code` to MinIO.
-- Publishes either `slice.completed` or `slice.failed`.
+- Работает как фоновый RabbitMQ consumer.
+- Скачивает модель и три JSON-профиля из MinIO.
+- Вызывает `slicer-api` по HTTP.
+- Проверяет, что ответ похож на `G-code`.
+- Загружает `G-code` обратно в MinIO.
+- Публикует `slice.completed` или `slice.failed`.
 
-## Data Model
+## Модель данных
 
-The repository currently uses two separate application databases:
+В репозитории сейчас две отдельные application databases:
 
-- `orders_db` for files, orders, telemetry
-- `inventory_db` for stock and reservations
+- `orders_db` - файлы, заказы, telemetry
+- `inventory_db` - stock и reservations
 
-Profile, material, printer, and process catalogs are currently defined in code inside `inventory-service`, while stock and reservations are persisted in PostgreSQL.
+Каталоги профилей, принтеров, материалов и процессов сейчас заданы в коде `inventory-service`, а stock/reservations живут в PostgreSQL.
 
 ```mermaid
 erDiagram
@@ -219,7 +239,7 @@ erDiagram
     INVENTORY ||--o{ RESERVATIONS : "reserved material"
 ```
 
-## Domain State Model
+## Состояния заказа
 
 ```text
 pending -> slicing -> priced -> confirmed -> printing -> completed
@@ -229,9 +249,9 @@ pending -> slicing -> priced -> confirmed -> printing -> completed
    +-> cancelled
 ```
 
-`confirmed`, `printing`, and `completed` already exist in the domain model and API types, even though the current UI flow is centered around `priced`.
+`confirmed`, `printing` и `completed` уже есть в доменной модели и API-типы тоже это знают, хотя текущий UI в основном живёт вокруг `priced`.
 
-## Repository Layout
+## Структура репозитория
 
 ```text
 .
@@ -252,7 +272,7 @@ pending -> slicing -> priced -> confirmed -> printing -> completed
 └── tests/postman
 ```
 
-## API Surface
+## API
 
 ### Public endpoints
 
@@ -274,25 +294,25 @@ pending -> slicing -> priced -> confirmed -> printing -> completed
 - `POST /api/internal/inventory/reserve`
 - `PATCH /api/internal/inventory/reservations/{orderId}/status`
 
-### Contracts
+### Контракты
 
-- OpenAPI summary: [docs/endpoints.yml](/workspaces/restful-slice/docs/endpoints.yml)
-- AsyncAPI summary: [docs/asyncapi.yml](/workspaces/restful-slice/docs/asyncapi.yml)
+- OpenAPI: [docs/endpoints.yml](docs/endpoints.yml)
+- AsyncAPI: [docs/asyncapi.yml](docs/asyncapi.yml)
 
-## Local Development
+## Локальная разработка
 
-### Prerequisites
+### Что нужно
 
-- `Docker` with Compose plugin
-- optional: `Python 3.11+`
-- optional: `Node.js 22+`
-- optional: `newman` for Postman-based smoke tests
+- `Docker` с Compose plugin
+- опционально: `Python 3.11+`
+- опционально: `Node.js 22+`
+- опционально: `newman`
 
-### Environment
+### `.env`
 
-The repository expects a local `.env` file. Compose reads it automatically.
+Compose читает `.env` автоматически.
 
-The important variables are:
+Главные переменные:
 
 ```dotenv
 POSTGRES_USER=postgres_admin
@@ -326,13 +346,13 @@ INVENTORY_PORT=8081
 INVENTORY_URL=http://inventory_service:8081
 ```
 
-### Start The Full Local Stack
+### Поднять стек
 
 ```bash
 docker compose up --build -d
 ```
 
-Services started by default:
+Поднимаются:
 
 - `postgres`
 - `rabbitmq`
@@ -344,17 +364,17 @@ Services started by default:
 - `frontend`
 - `gateway`
 
-### Load Slicer Profile Fixtures
+### Загрузить fixture profiles
 
-The happy path requires profile JSON fixtures to exist in MinIO.
+Для happy path в MinIO должны лежать JSON-профили.
 
 ```bash
 bash infra/scripts/load-fixtures.sh
 ```
 
-This mirrors [tests/postman/fixtures/profiles](/workspaces/restful-slice/tests/postman/fixtures/profiles) into `s3://3d-models/profiles/`.
+Скрипт зеркалит [tests/postman/fixtures/profiles](tests/postman/fixtures/profiles) в `s3://3d-models/profiles/`.
 
-### Health Checks
+### Проверка health
 
 - Gateway: `http://localhost/health`
 - Gateway internal health: `http://localhost/healthz`
@@ -363,7 +383,7 @@ This mirrors [tests/postman/fixtures/profiles](/workspaces/restful-slice/tests/p
 - RabbitMQ UI: `http://localhost:15672`
 - MinIO console: `http://localhost:9001`
 
-### Local Frontend-Only Development
+### Только фронтенд
 
 ```bash
 cd apps/frontend
@@ -371,26 +391,26 @@ npm install
 VITE_API_BASE_URL=http://localhost npm run dev
 ```
 
-Supported frontend env vars:
+Поддерживаемые env vars фронтенда:
 
 - `VITE_API_BASE_URL`
 - `VITE_ANALYTICS_ENDPOINT`
 - `VITE_SENTRY_DSN`
 - `VITE_APP_VERSION`
 
-### Local Service Development
+### Локальный запуск сервисов
 
-Compose override mounts the source directories for:
+`docker-compose.override.yml` монтирует исходники для:
 
 - `order_service`
 - `inventory_service`
 - `slicer_adapter`
 
-For pure Python runs outside Docker, use each service directory and install its `requirements.txt`.
+Если запускаешь Python-сервис вне Docker, ставь зависимости из его `requirements.txt`.
 
-## Smoke Testing
+## Smoke tests
 
-### Quick Manual Happy Path
+### Ручной happy path
 
 ```bash
 UPLOAD=$(curl -s -X POST http://localhost/api/orders/files \
@@ -413,16 +433,16 @@ done
 
 ### Postman / Newman
 
-Main collections:
+Основные коллекции:
 
-- [tests/postman/restful-slice-api-e2e.postman_collection.json](/workspaces/restful-slice/tests/postman/restful-slice-api-e2e.postman_collection.json)
-- [tests/postman/restful-slice-openapi-contract.postman_collection.json](/workspaces/restful-slice/tests/postman/restful-slice-openapi-contract.postman_collection.json)
+- [tests/postman/restful-slice-api-e2e.postman_collection.json](tests/postman/restful-slice-api-e2e.postman_collection.json)
+- [tests/postman/restful-slice-openapi-contract.postman_collection.json](tests/postman/restful-slice-openapi-contract.postman_collection.json)
 
-Documentation:
+Документация:
 
-- [tests/postman/README.md](/workspaces/restful-slice/tests/postman/README.md)
+- [tests/postman/README.md](tests/postman/README.md)
 
-Example run:
+Пример запуска:
 
 ```bash
 newman run tests/postman/restful-slice-api-e2e.postman_collection.json \
@@ -433,28 +453,28 @@ newman run tests/postman/restful-slice-api-e2e.postman_collection.json \
   --delay-request 2000
 ```
 
-## Automated Checks
+## Автоматизация
 
-Configured in [`.github/workflows/wf_1.yaml`](/workspaces/restful-slice/.github/workflows/wf_1.yaml):
+В [`.github/workflows/wf_1.yaml`](.github/workflows/wf_1.yaml) настроены:
 
-- unit and integration tests with `pytest`
-- coverage upload to `Codecov`
+- unit/integration тесты через `pytest`
+- coverage в `Codecov`
 - `Bandit` SAST
-- Postman/Newman smoke and E2E runs
-- image builds for all deployable components
-- `Trivy` vulnerability and secret scanning
-- GHCR image publishing on `main`
-- Swarm deployment on a self-hosted runner
+- Postman/Newman smoke и E2E
+- сборка образов
+- `Trivy` scan
+- push в GHCR на `main`
+- Swarm deploy на self-hosted runner
 
-Local hooks:
+Локальные hooks:
 
-- [`.pre-commit-config.yaml`](/workspaces/restful-slice/.pre-commit-config.yaml)
+- [`.pre-commit-config.yaml`](.pre-commit-config.yaml)
 
-## Deployment Modes
+## Деплой
 
 ### Docker Compose
 
-Use for local integration and development:
+Для локальной интеграции:
 
 ```bash
 docker compose up --build -d
@@ -462,9 +482,9 @@ docker compose up --build -d
 
 ### Docker Swarm
 
-Use [docker-stack.yml](/workspaces/restful-slice/docker-stack.yml) for cluster deployment.
+Для кластера используется [docker-stack.yml](docker-stack.yml).
 
-The stack includes:
+В stack входят:
 
 - replicated `order_service`
 - replicated `inventory_service`
@@ -474,25 +494,25 @@ The stack includes:
 - `frontend`
 - `rabbitmq`
 - `minio`
-- bootstrap job for databases
+- bootstrap job для БД
 
 ### HA PostgreSQL
 
-For production-grade Postgres HA, the repo includes a separate `postgres-ha` stack with:
+Для production-grade Postgres HA в репозитории есть отдельный `postgres-ha` stack:
 
 - `Patroni`
 - `Spilo`
 - `etcd`
 - `HAProxy`
 
-See:
+См.:
 
-- [infra/patroni/README.md](/workspaces/restful-slice/infra/patroni/README.md)
-- [infra/patroni/stack.yml](/workspaces/restful-slice/infra/patroni/stack.yml)
+- [infra/patroni/README.md](infra/patroni/README.md)
+- [infra/patroni/stack.yml](infra/patroni/stack.yml)
 
 ## Monitoring
 
-The repo also contains a Swarm monitoring stack with:
+Есть отдельный swarm stack для мониторинга:
 
 - `Prometheus`
 - `Grafana`
@@ -501,34 +521,34 @@ The repo also contains a Swarm monitoring stack with:
 - `node-exporter`
 - `cAdvisor`
 
-Entry point:
+Точка входа:
 
-- [infra/monitoring/docker-stack-monitor.yml](/workspaces/restful-slice/infra/monitoring/docker-stack-monitor.yml)
+- [infra/monitoring/docker-stack-monitor.yml](infra/monitoring/docker-stack-monitor.yml)
 
-## Important Implementation Notes
+## Важные детали
 
-- Profile, printer, process, and material catalogs are currently hard-coded inside `inventory-service`; only stock and reservations are persisted.
-- `order-service` stores metadata and state, but not binary files; binaries live in MinIO.
-- The end-to-end slicing path depends on fixture profile JSON existing in MinIO.
-- Telemetry is opt-in on the frontend and lands in the `telemetry_events` table through `order-service`.
-- The gateway publishes `80 -> 8080` and routes the SPA and APIs from one entrypoint.
+- Каталоги профилей, принтеров, материалов и процессов сейчас hard-coded внутри `inventory-service`.
+- `order-service` хранит метаданные и состояние, но не бинарники.
+- Сценарий end-to-end зависит от fixture profile JSON в MinIO.
+- Telemetry идёт только после согласия пользователя.
+- Gateway открывает один вход на `80:8080` и проксирует SPA и API.
 
-## Known Boundaries
+## Ограничения
 
-- No authentication or authorization is currently enforced in the running code, even though older docs mention API keys.
-- The current UI is an operator-style dashboard, not a customer storefront.
-- Reservation and catalog logic are intentionally simple and optimized for the current integration flow.
-- Swarm deployment assets are more advanced than the local runtime model; local Compose remains the easiest way to validate the system.
+- В рантайме пока нет auth/authz, хотя старые материалы местами упоминали `X-API-Key`.
+- Текущий UI больше похож на operator dashboard, чем на customer storefront.
+- Логика резерва и каталога намеренно простая и заточена под текущий поток.
+- Для локальной проверки проще всего использовать `docker compose`, а Swarm — уже для прод-сценария.
 
-## Related Docs
+## Связанные документы
 
-- [docs/endpoints.yml](/workspaces/restful-slice/docs/endpoints.yml)
-- [docs/asyncapi.yml](/workspaces/restful-slice/docs/asyncapi.yml)
-- [docs/assets/architecture.md](/workspaces/restful-slice/docs/assets/architecture.md)
-- [services/slicer-adapter/README.md](/workspaces/restful-slice/services/slicer-adapter/README.md)
-- [apps/frontend/README.md](/workspaces/restful-slice/apps/frontend/README.md)
-- [infra/patroni/README.md](/workspaces/restful-slice/infra/patroni/README.md)
+- [docs/endpoints.yml](docs/endpoints.yml)
+- [docs/asyncapi.yml](docs/asyncapi.yml)
+- [docs/assets/architecture.md](docs/assets/architecture.md)
+- [services/slicer-adapter/README.md](services/slicer-adapter/README.md)
+- [apps/frontend/README.md](apps/frontend/README.md)
+- [infra/patroni/README.md](infra/patroni/README.md)
 
 ## License
 
-[BSD License](/workspaces/restful-slice/LICENSE)
+[BSD License](LICENSE)
