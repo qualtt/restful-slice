@@ -53,7 +53,11 @@ def handle_slicing_result(event_json: str) -> None:
             try:
                 resp = httpx.post(
                     f"{settings.inventory_url}/api/internal/inventory/reserve",
-                    json={"orderId": order_id, "profileId": profile_id, "weightGrams": weight},
+                    json={
+                        "orderId": order_id,
+                        "profileId": profile_id,
+                        "weightGrams": weight,
+                    },
                     timeout=10.0,
                 )
                 if resp.status_code == 200:
@@ -66,7 +70,9 @@ def handle_slicing_result(event_json: str) -> None:
                     fail_order(order_id, error_message)
                     return
             except Exception as exc:
-                logger.exception("Failed to call inventory reserve for order %s", order_id)
+                logger.exception(
+                    "Failed to call inventory reserve for order %s", order_id
+                )
                 fail_order(order_id, f"Inventory reserve failed: {exc}")
                 return
 
@@ -105,10 +111,13 @@ async def global_exception_handler(request: Request, exc: Exception):
         return JSONResponse(
             status_code=exc.status_code,
             content={
-                "code": "INTERNAL_ERROR" if exc.status_code >= 500 else str(exc.detail).upper(),
+                "code": "INTERNAL_ERROR"
+                if exc.status_code >= 500
+                else str(exc.detail).upper(),
                 "message": str(exc.detail),
             },
         )
+    logger.exception("%s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
         content={"code": "INTERNAL_ERROR", "message": "An unexpected error occurred"},
@@ -201,7 +210,10 @@ async def upload_stl_file(file: UploadFile = File(...)):
     if not name_lower.endswith(allowed_exts) and file.content_type not in allowed_mimes:
         return JSONResponse(
             status_code=400,
-            content={"code": "INVALID_FILE_TYPE", "message": "Only STL, 3MF, or STEP files are accepted"},
+            content={
+                "code": "INVALID_FILE_TYPE",
+                "message": "Only STL, 3MF, or STEP files are accepted",
+            },
         )
 
     data = await file.read()
@@ -209,7 +221,10 @@ async def upload_stl_file(file: UploadFile = File(...)):
     if size > 100 * 1024 * 1024:
         return JSONResponse(
             status_code=413,
-            content={"code": "FILE_TOO_LARGE", "message": "File size exceeds 100 MB limit"},
+            content={
+                "code": "FILE_TOO_LARGE",
+                "message": "File size exceeds 100 MB limit",
+            },
         )
 
     file_record = order_db.save_file(file.filename, size)
@@ -232,16 +247,23 @@ async def create_order(payload: CreateOrderRequest):
     except KeyError:
         return JSONResponse(
             status_code=404,
-            content={"code": "FILE_NOT_FOUND", "message": "STL file with given fileId does not exist"},
+            content={
+                "code": "FILE_NOT_FOUND",
+                "message": "STL file with given fileId does not exist",
+            },
         )
 
     try:
         file_record = order_db.get_file(str(payload.fileId))
-        object_key = file_record.get("objectKey") or f"stl/orders/{payload.fileId}/{file_record.get('filename', 'model.stl')}"
+        object_key = file_record.get(
+            "objectKey"
+        ) or f"stl/orders/{payload.fileId}/{file_record.get('filename', 'model.stl')}"
         order_db.update_status(order["orderId"], OrderStatus.SLICING.value)
         publish_slice_requested(order["orderId"], object_key, payload.profileId)
     except Exception:
-        logger.exception("Failed to publish slice.requested for order %s", order["orderId"])
+        logger.exception(
+            "Failed to publish slice.requested for order %s", order["orderId"]
+        )
 
     return order_db.get_order(order["orderId"])
 
@@ -260,7 +282,10 @@ async def list_orders(
     start = (page - 1) * pageSize
     end = start + pageSize
 
-    return {"data": orders[start:end], "meta": {"total": total, "page": page, "pageSize": pageSize}}
+    return {
+        "data": orders[start:end],
+        "meta": {"total": total, "page": page, "pageSize": pageSize},
+    }
 
 
 @router.get("/{orderId}", response_model=OrderResponse)
@@ -268,7 +293,10 @@ async def get_order(orderId: UUID4):
     try:
         return order_db.get_order(str(orderId))
     except KeyError:
-        return JSONResponse(status_code=404, content={"code": "NOT_FOUND", "message": "Resource not found"})
+        return JSONResponse(
+            status_code=404,
+            content={"code": "NOT_FOUND", "message": "Resource not found"},
+        )
 
 
 @router.delete("/{orderId}", response_model=OrderResponse)
@@ -289,13 +317,16 @@ async def cancel_order(orderId: UUID4):
             )
         return order_db.update_status(str(orderId), OrderStatus.CANCELLED.value)
     except KeyError:
-        return JSONResponse(status_code=404, content={"code": "NOT_FOUND", "message": "Resource not found"})
+        return JSONResponse(
+            status_code=404,
+            content={"code": "NOT_FOUND", "message": "Resource not found"},
+        )
 
 
 @telemetry_router.post("/events", status_code=202)
 async def receive_telemetry_events(payload: TelemetryBatchRequest):
     from core.database import db_stub
-    
+
     for event in payload.events:
         try:
             db_stub.insert(
@@ -309,11 +340,11 @@ async def receive_telemetry_events(payload: TelemetryBatchRequest):
                     "context": event.context,
                     "data": event.data,
                     "client_ts": event.ts,
-                }
+                },
             )
         except Exception:
             logger.exception("Failed to insert telemetry event %s", event.id)
-            
+
     return {"status": "accepted", "processed": len(payload.events)}
 
 

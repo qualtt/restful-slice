@@ -108,6 +108,14 @@ services:
       - ORDER_DB_USER=${ORDER_DB_USER}
       - ORDER_DB_PASSWORD=${ORDER_DB_PASSWORD}
       - ORDER_DB_NAME=${ORDER_DB_NAME}
+      # Совпадает с core/config.py и infra/scripts/load-fixtures (bucket 3d-models).
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO_BUCKET=3d-models
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RMQ_USER}
+      - RABBITMQ_PASSWORD=${RMQ_PASSWORD}
     # Перекрываем CMD из Dockerfile, не трогая код сервиса:
     # 1) ждём, пока postgres начнёт принимать наши креды,
     # 2) ретраим alembic (на случай, если db_bootstrap ещё не успел доделать гранты),
