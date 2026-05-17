@@ -460,6 +460,9 @@ jobs:
           echo "===== DEPLOY Postgres HA stack (postgres-ha) ====="
           docker stack deploy --with-registry-auth -c infra/patroni/stack.yml postgres-ha
 
+          echo "===== WAIT postgres-ha все сервисы в строю (до ~15 мин) ====="
+          bash infra/scripts/wait-postgres-ha.sh
+
           # 2. Подставляем ТОЛЬКО нужные переменные — полный envsubst съедает $ внутри
           # встроенных shell/python-блоков и ломает YAML.
           vars='$POSTGRES_USER $POSTGRES_PASSWORD'

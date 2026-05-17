@@ -119,3 +119,14 @@
       delegate_to: manager
       run_once: true
       loop: "{{ ansible_play_hosts_all }}"
+
+    # Patroni: три члена etcd + три Spilo (см. infra/patroni/stack.yml). Должны быть три РАЗНЫЕ compute-ноды.
+    # manager -> a (предпочтительный лидер), worker1 -> b, worker2 -> c (имена узлов как в Docker Swarm)
+    - name: 9. Patroni member labels на Proxmox (manager=a, worker1=b, worker2=c)
+      command: "docker node update --label-add patroni.member={{ item.slot }} {{ item.node }}"
+      delegate_to: manager
+      run_once: true
+      loop:
+        - { node: manager, slot: a }
+        - { node: worker1, slot: b }
+        - { node: worker2, slot: c }

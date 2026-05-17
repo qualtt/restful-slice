@@ -29,6 +29,10 @@ docker node update --label-add patroni.member=b ИМЯ_ВОРКЕРА_1
 docker node update --label-add patroni.member=c ИМЯ_ВОРКЕРА_2
 ```
 
+**Автоматизация разметки:** при провижинге `infra/ansible/setup-base.yml` шаг **9** выставляет `patroni.member` на узлах **manager**, **worker1**, **worker2** (имена должны совпадать с колонкой **HOSTNAME** в `docker node ls` из вашего инвентаря).
+
+**CI:** после `docker stack deploy postgres-ha` job ждёт, пока все сервисы стека станут `1/1`, скриптом `infra/scripts/wait-postgres-ha.sh`; иначе деплой `restful-slice` даже не стартует (меньше «полусломанного» прода).
+
 **Дополнительно:** зона приложения (**`zone=edge/compute`**) должна быть выставлена как у вас в `docker-stack.yml`; на Patroni она не влияет.
 
 **Лидер «по умолчанию»:** Patroni не привязан к роли Swarm-manager; задаётся через тег **`failover_priority`** (Spilo **`PATRONI_TAGS`**). При равномерном старте кластера **наибольший приоритет у члена на `patroni.member=a`** (обычно менеджер), затем **`b`**, затем **`c`**.
