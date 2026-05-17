@@ -16,6 +16,9 @@ export RESTFUL_BACKEND_NET_NAME="${RESTFUL_BACKEND_NET_NAME:-restful-slice_backe
 export POSTGRES_SUPERUSER="${POSTGRES_SUPERUSER:-${POSTGRES_USER:-}}"
 export POSTGRES_SUPERUSER_PASSWORD="${POSTGRES_SUPERUSER_PASSWORD:-${POSTGRES_PASSWORD:-}}"
 
+# Имя Swarm config HAProxy версионируется — содержимое config в Swarm нельзя обновить.
+export POSTGRES_HA_HAPROXY_CFG_VERSION="${POSTGRES_HA_HAPROXY_CFG_VERSION:-$(sha256sum "$ROOT/infra/patroni/haproxy.cfg" | cut -c1-12)}"
+
 if [ -z "$POSTGRES_SUPERUSER_PASSWORD" ]; then
 	echo "deploy-postgres-ha: задайте POSTGRES_SUPERUSER_PASSWORD или POSTGRES_PASSWORD в окружении / .env" >&2
 	exit 1

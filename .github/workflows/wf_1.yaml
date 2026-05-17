@@ -458,6 +458,9 @@ jobs:
           export POSTGRES_SUPERUSER="${POSTGRES_SUPERUSER:-$POSTGRES_USER}"
           export POSTGRES_SUPERUSER_PASSWORD="${POSTGRES_SUPERUSER_PASSWORD:-$POSTGRES_PASSWORD}"
 
+          export POSTGRES_HA_HAPROXY_CFG_VERSION="$(sha256sum infra/patroni/haproxy.cfg | cut -c1-12)"
+          echo "POSTGRES_HA_HAPROXY_CFG_VERSION=$POSTGRES_HA_HAPROXY_CFG_VERSION"
+
           echo "===== DEPLOY Postgres HA stack (postgres-ha) ====="
           docker stack deploy --with-registry-auth -c infra/patroni/stack.yml postgres-ha
 

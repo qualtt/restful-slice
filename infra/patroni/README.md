@@ -65,13 +65,14 @@ set -a && [ -f .env ] && . ./.env; set +a
 export RESTFUL_BACKEND_NET_NAME="${RESTFUL_BACKEND_NET_NAME:-restful-slice_backend_net}"
 export POSTGRES_SUPERUSER="${POSTGRES_SUPERUSER:-$POSTGRES_USER}"
 export POSTGRES_SUPERUSER_PASSWORD="${POSTGRES_SUPERUSER_PASSWORD:-$POSTGRES_PASSWORD}"
+export POSTGRES_HA_HAPROXY_CFG_VERSION="${POSTGRES_HA_HAPROXY_CFG_VERSION:-$(sha256sum infra/patroni/haproxy.cfg | cut -c1-12)}"
 ```
 
-Из **корня репозитория** (путь `./haproxy.cfg` задаётся относительно каталога `infra/patroni`):
+Из **корня репозитория** (путь `./haproxy.cfg` задаётся относительно каталога `infra/patroni`). Проще **`infra/scripts/deploy-postgres-ha.sh`** — он сам считает **`POSTGRES_HA_HAPROXY_CFG_VERSION`** (имя Swarm-config для `haproxy.cfg` при каждом изменении файла должно быть новым, иначе `only updates to Labels are allowed`).
 
 ```bash
 infra/scripts/deploy-postgres-ha.sh
-# или напрямую:
+# вручную (экспорт версии обязателен при любом изменении infra/patroni/haproxy.cfg):
 docker stack deploy --with-registry-auth -c infra/patroni/stack.yml postgres-ha
 
 docker stack services postgres-ha

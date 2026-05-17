@@ -206,4 +206,7 @@ volumes:
 
 configs:
   patroni_haproxy_cfg:
+    # Swarm configs неизменяемы: при смене haproxy.cfg нужно новое имя иначе deploy падает
+    # (only updates to Labels are allowed). Версию задаёт POSTGRES_HA_HAPROXY_CFG_VERSION — CI и deploy-postgres-ha.sh.
+    name: postgres-ha_patroni_haproxy_cfg_${POSTGRES_HA_HAPROXY_CFG_VERSION}
     file: ./haproxy.cfg
