@@ -428,7 +428,7 @@ jobs:
           # 2. Подставляем ТОЛЬКО нужные переменные — полный envsubst съедает $ внутри
           # встроенных shell/python-блоков и ломает YAML.
           vars='$POSTGRES_USER $POSTGRES_PASSWORD $POSTGRES_DB'
-          vars="$vars "'$RMQ_USER $RMQ_PASSWORD $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD'
+          vars="$vars "'$RMQ_USER $RMQ_PASSWORD $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD $MINIO_BUCKET_NAME'
           vars="$vars "'$ORDER_PORT $INVENTORY_PORT'
           vars="$vars "'$ORDER_DB_USER $ORDER_DB_PASSWORD $ORDER_DB_NAME'
           vars="$vars "'$INV_DB_USER $INV_DB_PASSWORD $INV_DB_NAME'

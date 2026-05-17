@@ -28,7 +28,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("MINIO_SECRET_KEY", "MINIO_ROOT_PASSWORD")
     )
     minio_bucket: str = Field(
-        validation_alias=AliasChoices("MINIO_BUCKET", "MINIO_BUCKET_NAME")
+        default="3d-models",
+        validation_alias=AliasChoices("MINIO_BUCKET", "MINIO_BUCKET_NAME"),
     )
     minio_secure: bool = Field(default=False, validation_alias="MINIO_SECURE")
 
