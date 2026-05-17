@@ -13,9 +13,8 @@ COPY src ./src
 ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
-ARG VITE_ANALYTICS_ENDPOINT=""
-ENV VITE_ANALYTICS_ENDPOINT=${VITE_ANALYTICS_ENDPOINT}
-
+# VITE_ANALYTICS_ENDPOINT не задаём: пустая строка в проде давала axios POST на '/' вместо /api/telemetry/events.
+# Префикс задаётся в коде по умолчанию (apps/frontend/src/lib/api.ts).
 ARG VITE_APP_VERSION="0.1.0"
 ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 

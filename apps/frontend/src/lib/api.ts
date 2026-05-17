@@ -52,7 +52,11 @@ export async function syncTelemetryBatch(events: TelemetryEvent[]): Promise<void
     return;
   }
 
-  const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT ?? "/api/telemetry/events";
+  const rawEndpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT;
+  const endpoint =
+    typeof rawEndpoint === "string" && rawEndpoint.trim() !== ""
+      ? rawEndpoint
+      : "/api/telemetry/events";
   await api.post(endpoint, {
     source: "restful-slice-frontend",
     events
