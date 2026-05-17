@@ -338,6 +338,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           target: ${{ matrix.target }}
+          pull: true
           push: false
           load: true
           platforms: linux/amd64
@@ -351,6 +352,7 @@ jobs:
         with:
           context: ./apps/frontend
           file: ./apps/frontend/Dockerfile
+          pull: true
           push: false
           load: true
           platforms: linux/amd64
@@ -363,6 +365,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ./infra/postgres
+          pull: true
           push: false
           load: true
           platforms: linux/amd64
@@ -376,6 +379,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           build-args: ${{ matrix.build_args }}
+          pull: true
           push: false
           load: true
           platforms: linux/amd64

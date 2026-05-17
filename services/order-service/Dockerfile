@@ -13,6 +13,7 @@ WORKDIR /build
 RUN python -m venv /opt/venv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip uninstall -y pip setuptools wheel
 
 # --- Этап 2: Локальная разработка (Development) ---
 FROM base AS development
