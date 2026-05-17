@@ -9,7 +9,13 @@ export function ConsentModal({ open, onAccept }: ConsentModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'url(https://www.transparenttextures.com/patterns/diagmonds-light.png)' }}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#909090]"
+      style={{
+        backgroundImage:
+          "repeating-linear-gradient(45deg, transparent 0 2px, rgba(0,0,0,0.06) 2px 4px)"
+      }}
+    >
       <div className="w-full max-w-lg window-2002 shadow-[2px_2px_0px_#000]">
         <div className="window-title-2002 flex justify-between">
           <span>Data Processing Consent</span>
