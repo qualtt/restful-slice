@@ -101,9 +101,9 @@ services:
       - SCOPE=restful_patroni
       - PATRONI_NAME=spilo-a
       - 'PATRONI_TAGS={"failover_priority":100}'
-      # Список host:port через запятую (без вложенных "…" — через Swarm/Compose Patroni
-      # мог получить порт вида 2379" и падать при старте DCS).
-      - ETCD_HOSTS=postgres-ha_etcd0:2379,postgres-ha_etcd1:2379,postgres-ha_etcd2:2379
+      # etcd 3.5 не отдаёт HTTP API v2 — не используйте ETCD_HOSTS (Spilo тогда ждёт /v2 → 404).
+      # Задаём DCS Patroni как etcd3 (gRPC), см. https://github.com/zalando/spilo/issues/1103
+      - 'SPILO_CONFIGURATION={"etcd3":{"hosts":["postgres-ha_etcd0:2379","postgres-ha_etcd1:2379","postgres-ha_etcd2:2379"]}}'
       - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
       - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD}
       - ALLOW_NOSSL=true
@@ -126,9 +126,7 @@ services:
       - SCOPE=restful_patroni
       - PATRONI_NAME=spilo-b
       - 'PATRONI_TAGS={"failover_priority":55}'
-      # Список host:port через запятую (без вложенных "…" — через Swarm/Compose Patroni
-      # мог получить порт вида 2379" и падать при старте DCS).
-      - ETCD_HOSTS=postgres-ha_etcd0:2379,postgres-ha_etcd1:2379,postgres-ha_etcd2:2379
+      - 'SPILO_CONFIGURATION={"etcd3":{"hosts":["postgres-ha_etcd0:2379","postgres-ha_etcd1:2379","postgres-ha_etcd2:2379"]}}'
       - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
       - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD}
       - ALLOW_NOSSL=true
@@ -151,9 +149,7 @@ services:
       - SCOPE=restful_patroni
       - PATRONI_NAME=spilo-c
       - 'PATRONI_TAGS={"failover_priority":10}'
-      # Список host:port через запятую (без вложенных "…" — через Swarm/Compose Patroni
-      # мог получить порт вида 2379" и падать при старте DCS).
-      - ETCD_HOSTS=postgres-ha_etcd0:2379,postgres-ha_etcd1:2379,postgres-ha_etcd2:2379
+      - 'SPILO_CONFIGURATION={"etcd3":{"hosts":["postgres-ha_etcd0:2379","postgres-ha_etcd1:2379","postgres-ha_etcd2:2379"]}}'
       - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
       - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD}
       - ALLOW_NOSSL=true

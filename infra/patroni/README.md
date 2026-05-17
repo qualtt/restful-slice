@@ -104,6 +104,10 @@ docker pull quay.io/coreos/etcd:v3.5.17
 
 Том etcd в стеке смонтирован в **`/etcd-data`** (`ETCD_DATA_DIR`). Если раньше крутился **Bitnami**, старый layout данных в томах может быть несовместим — после остановки стека при необходимости **удали только пустые/тестовые** named volumes etcd и подними заново (см. раздел ниже).
 
+### Patroni: лог **`Failed to get list of machines … /v2`** и **`waiting on etcd`**
+
+Переменная **`ETCD_HOSTS`** в Spilo включает DCS через **etcd API v2**. В **etcd 3.5** HTTP **v2** по сути недоступен (часто **404** на `/v2`), bootstrap не находит членов. В этом стеке DCS задаётся **`SPILO_CONFIGURATION`** с **`etcd3.hosts`** (три узла через DNS Swarm **`postgres-ha_etcd{N}:2379`**), переменную **`ETCD_HOSTS`** не используйте. См. [spilo #1103](https://github.com/zalando/spilo/issues/1103).
+
 Проверка лидера (любая задача с Spilo или HAProxy на overlay `patroni_int`):
 
 ```bash
