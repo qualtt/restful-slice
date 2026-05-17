@@ -478,7 +478,8 @@ jobs:
 
           grep -A15 "frontend:" stack-resolved.yml | head -20
 
-          grep "POSTGRES_USER" stack-resolved.yml
+          # После envsubst переменная POSTGRES_USER уже не в тексте файла — смотреть резолв PGUSER/PGPASSWORD.
+          grep "PGUSER=" stack-resolved.yml
           grep "ORDER_DB_USER" stack-resolved.yml
 
           # (Опционально) Можешь раскомментировать нижнюю строку, чтобы убедиться,
