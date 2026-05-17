@@ -114,7 +114,7 @@ services:
         python - <<'PYEOF'
         import os, sys, time, subprocess, psycopg
 
-        deadline = time.time() + 180
+        deadline = time.time() + 300
         last = ""
         while time.time() < deadline:
             try:
@@ -185,7 +185,7 @@ services:
         python - <<'PYEOF'
         import os, sys, time, subprocess, psycopg
 
-        deadline = time.time() + 180
+        deadline = time.time() + 300
         last = ""
         while time.time() < deadline:
             try:

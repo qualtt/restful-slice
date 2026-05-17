@@ -491,7 +491,7 @@ jobs:
           # cat stack-resolved.yml
 
           # 3. Деплоим уже собранный манифест со вшитыми паролями
-          docker stack deploy --with-registry-auth -c stack-resolved.yml restful-slice
+          docker stack deploy --with-registry-auth --prune -c stack-resolved.yml restful-slice
 
           # 4. Аналогично для мониторинга
           cd infra/monitoring
