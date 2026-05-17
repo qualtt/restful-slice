@@ -93,6 +93,8 @@ def handle_slicing_result(event_json: str) -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # На случай любого преждевременного импортного вызова get_settings() без полного окружения.
+    get_settings.cache_clear()
     start_results_consumer(handle_slicing_result)
     yield
 

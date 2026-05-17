@@ -1,4 +1,3 @@
-import os
 from functools import lru_cache
 from urllib.parse import quote
 
@@ -7,13 +6,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Явный alias нужен для env: иначе в ряде версий pydantic-settings не матчится
+    # RABBITMQ_USER / RABBITMQ_PASSWORD из Docker, берутся дефолты guest/guest
+    # (на брокере тогда видно PLAIN refused: user 'guest').
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", populate_by_name=True
+    )
 
-    rabbitmq_url: str | None = Field(default=None, validation_alias="RABBITMQ_URL")
-    rabbitmq_user: str = Field(default="guest", validation_alias="RABBITMQ_USER")
-    rabbitmq_password: str = Field(default="guest", validation_alias="RABBITMQ_PASSWORD")
-    rabbitmq_host: str = Field(default="rabbitmq", validation_alias="RABBITMQ_HOST")
-    rabbitmq_port: int = Field(default=5672, validation_alias="RABBITMQ_PORT")
+    rabbitmq_url: str | None = Field(default=None, alias="RABBITMQ_URL")
+    rabbitmq_user: str = Field(default="guest", alias="RABBITMQ_USER")
+    rabbitmq_password: str = Field(default="guest", alias="RABBITMQ_PASSWORD")
+    rabbitmq_host: str = Field(default="rabbitmq", alias="RABBITMQ_HOST")
+    rabbitmq_port: int = Field(default=5672, alias="RABBITMQ_PORT")
 
     minio_endpoint: str = Field(default="minio:9000", validation_alias="MINIO_ENDPOINT")
     minio_access_key: str = Field(
