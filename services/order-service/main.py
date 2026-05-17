@@ -220,6 +220,7 @@ async def upload_stl_file(file: UploadFile = File(...)):
 
     data = await file.read()
     size = len(data)
+    safe_name = ((file.filename or "").strip()) or "upload.bin"
     if size > 100 * 1024 * 1024:
         return JSONResponse(
             status_code=413,
@@ -229,12 +230,12 @@ async def upload_stl_file(file: UploadFile = File(...)):
             },
         )
 
-    file_record = order_db.save_file(file.filename, size)
+    file_record = order_db.save_file(safe_name, size)
 
     try:
         settings = get_settings()
         minio = OrderMinioClient(settings)
-        object_key = minio.upload_stl(file_record["fileId"], file.filename, data)
+        object_key = minio.upload_stl(file_record["fileId"], safe_name, data)
         order_db.save_file_object_key(file_record["fileId"], object_key)
     except Exception:
         logger.exception("MinIO upload failed for file %s", file_record["fileId"])

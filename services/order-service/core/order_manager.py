@@ -52,16 +52,25 @@ class OrderManager:
 
     def save_file(self, filename: str, size_bytes: int) -> dict:
         file_id = str(uuid4())
-        now = datetime.now(timezone.utc).isoformat()
-        file_data = {
+        now_dt = datetime.now(timezone.utc)
+        # В Postgres adapter передаём datetime — надёжнее, чем ISO-строка для TIMESTAMPTZ.
+        self.db.insert(
+            "files",
+            file_id,
+            {
+                "filename": filename,
+                "sizeBytes": size_bytes,
+                "uploadedAt": now_dt,
+                "objectKey": None,
+            },
+        )
+        return {
             "fileId": file_id,
             "filename": filename,
             "sizeBytes": size_bytes,
-            "uploadedAt": now,
+            "uploadedAt": now_dt.isoformat(),
             "objectKey": None,
         }
-        self.db.insert("files", file_id, file_data)
-        return file_data
 
     def save_file_object_key(self, file_id: str, object_key: str) -> None:
         self.db.update("files", file_id, {"objectKey": object_key})
@@ -75,21 +84,29 @@ class OrderManager:
             raise KeyError(f"Файл с ID {file_id} не найден")
 
         order_id = str(uuid4())
-        now = datetime.now(timezone.utc).isoformat()
+        now_dt = datetime.now(timezone.utc)
 
-        order = {
+        payload = {
             "orderId": order_id,
             "status": OrderStatus.PENDING.value,
             "fileId": file_id,
             "profileId": profile_id,
             "slicingResult": None,
             "errorMessage": None,
-            "createdAt": now,
-            "updatedAt": now,
+            "createdAt": now_dt.isoformat(),
+            "updatedAt": now_dt.isoformat(),
         }
-        # INSERT INTO orders ...
-        self.db.insert("orders", order_id, order)
-        return order
+        insert_row = {
+            "status": payload["status"],
+            "fileId": file_id,
+            "profileId": profile_id,
+            "slicingResult": None,
+            "errorMessage": None,
+            "createdAt": now_dt,
+            "updatedAt": now_dt,
+        }
+        self.db.insert("orders", order_id, insert_row)
+        return payload
 
     def get_order(self, order_id: str) -> dict:
         order = self.db.select("orders", order_id)
@@ -123,7 +140,7 @@ class OrderManager:
 
         updates = {
             "status": enum_status.value,
-            "updatedAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc),
         }
 
         if slicing_result:
