@@ -448,9 +448,21 @@ jobs:
           echo "BOOTSTRAP_VERSION=$BOOTSTRAP_VERSION"
           echo "GATEWAY_CONF_VERSION=$GATEWAY_CONF_VERSION"
 
+          # Общая overlay между postgres-ha и restful-slice (должна существовать до обоих stack deploy).
+          export RESTFUL_BACKEND_NET_NAME="${RESTFUL_BACKEND_NET_NAME:-restful-slice_backend_net}"
+          docker network inspect "$RESTFUL_BACKEND_NET_NAME" >/dev/null 2>&1 \
+            || docker network create -d overlay --attachable "$RESTFUL_BACKEND_NET_NAME"
+
+          # Spilo: суперпользователь Postgres (db_bootstrap идёт теми же учётными данными через HAProxy).
+          export POSTGRES_SUPERUSER="${POSTGRES_SUPERUSER:-$POSTGRES_USER}"
+          export POSTGRES_SUPERUSER_PASSWORD="${POSTGRES_SUPERUSER_PASSWORD:-$POSTGRES_PASSWORD}"
+
+          echo "===== DEPLOY Postgres HA stack (postgres-ha) ====="
+          docker stack deploy --with-registry-auth -c infra/patroni/stack.yml postgres-ha
+
           # 2. Подставляем ТОЛЬКО нужные переменные — полный envsubst съедает $ внутри
           # встроенных shell/python-блоков и ломает YAML.
-          vars='$POSTGRES_USER $POSTGRES_PASSWORD $POSTGRES_DB'
+          vars='$POSTGRES_USER $POSTGRES_PASSWORD'
           vars="$vars "'$RMQ_USER $RMQ_PASSWORD $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD $MINIO_BUCKET_NAME'
           vars="$vars "'$ORDER_PORT $INVENTORY_PORT'
           vars="$vars "'$ORDER_DB_USER $ORDER_DB_PASSWORD $ORDER_DB_NAME'
@@ -460,11 +472,11 @@ jobs:
 
           echo "===== RESOLVED STACK CHECK ====="
 
-          grep -A5 "postgres:" stack-resolved.yml
+          grep -A12 "db_bootstrap:" stack-resolved.yml | head -20
 
-          grep -A20 "order_service:" stack-resolved.yml
+          grep -A22 "order_service:" stack-resolved.yml | head -30
 
-          grep -A15 "frontend:" stack-resolved.yml
+          grep -A15 "frontend:" stack-resolved.yml | head -20
 
           grep "POSTGRES_USER" stack-resolved.yml
           grep "ORDER_DB_USER" stack-resolved.yml
@@ -492,4 +504,5 @@ jobs:
 
       - name: Debug swarm envs
         run: |
-          docker service inspect restful-slice_postgres
+          docker stack services postgres-ha || true
+          docker service inspect postgres-ha_pg_haproxy >/dev/null 2>&1 && docker service inspect postgres-ha_pg_haproxy || echo "postgres-ha_pg_haproxy missing"

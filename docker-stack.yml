@@ -1,28 +1,12 @@
 version: '3.8'
 
-services:
-  postgres:
-    # Прод использует vanilla-образ — DDL identity применяет сервис db_bootstrap.
-    # Кастомный образ из infra/postgres остался ТОЛЬКО для локального Compose
-    # (там нужен bake init-скрипта из-за FUSE на macOS).
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-    networks:
-      - backend_net
-    deploy:
-      placement:
-        constraints:
-          - node.role == manager # БД живет ТОЛЬКО на менеджере (дома)
-      resources:
-        limits:
-          cpus: !!str "2.0"
-          memory: 1G
+# Swarm Postgres = стек postgres-ha (Patroni/Spilo + HAProxy). Ожидается внешний overlay:
+#     restful-slice_backend_net
+# Перед первым деплоем один раз создай сеть на менеджере, если её ещё нет:
+#     docker network create -d overlay --attachable restful-slice_backend_net
+# Приложение подключается к postgres-ha_pg_haproxy:5432 (см. db_bootstrap, order/inventory).
 
+services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     environment:
@@ -60,11 +44,13 @@ services:
   db_bootstrap:
     image: postgres:15-alpine
     environment:
-      - PGHOST=postgres
+      # RW через HAProxy стека postgres-ha — Patroni шлёт на текущего primary.
+      - PGHOST=postgres-ha_pg_haproxy
       - PGPORT=5432
       - PGUSER=${POSTGRES_USER}
       - PGPASSWORD=${POSTGRES_PASSWORD}
-      - PGDATABASE=${POSTGRES_DB}
+      # На свежем Spilo всегда есть служебная база postgres; bootstrap.sql только создаёт роли и app-БД.
+      - PGDATABASE=postgres
     networks:
       - backend_net
     configs:
@@ -103,7 +89,7 @@ services:
     image: ghcr.io/qualtt/restful-slice/order-service:latest
     environment:
       - PORT=${ORDER_PORT}
-      - DB_HOST=postgres
+      - DB_HOST=postgres-ha_pg_haproxy
       - POSTGRES_PORT=5432
       - ORDER_DB_USER=${ORDER_DB_USER}
       - ORDER_DB_PASSWORD=${ORDER_DB_PASSWORD}
@@ -187,7 +173,7 @@ services:
     image: ghcr.io/qualtt/restful-slice/inventory-service:latest
     environment:
       - PORT=${INVENTORY_PORT}
-      - DB_HOST=postgres
+      - DB_HOST=postgres-ha_pg_haproxy
       - POSTGRES_PORT=5432
       - INV_DB_USER=${INV_DB_USER}
       - INV_DB_PASSWORD=${INV_DB_PASSWORD}
@@ -346,13 +332,10 @@ services:
           - node.labels.zone == edge # Gateway будет крутиться только на Beget!
 
 networks:
+  # Общий overlay с патроневским стеком (external: патрон повесит свой pg_haproxy сюда же).
   backend_net:
-    driver: overlay
-    ipam:
-      config:
-        - subnet: 10.20.1.0/24  # Смени на 10.20... чтобы точно не было конфликтов
-    driver_opts:
-      com.docker.network.driver.mtu: 1200
+    external: true
+    name: restful-slice_backend_net
   public_net:
     driver: overlay
     ipam:
@@ -369,7 +352,6 @@ networks:
       com.docker.network.driver.mtu: 1200
 
 volumes:
-  pg_data:
   minio_data:
   slicer_data:
 

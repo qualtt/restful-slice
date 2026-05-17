@@ -1,0 +1,199 @@
+version: '3.8'
+
+# Postgres HA: 3 × Spilo (Patroni) + 3 × etcd + HAProxy RW.
+#
+# Связанный overlay приложения задаётся внешне (общий Docker network), см. README.
+#
+# Перед первым деплоем три ноды должны быть размечены:
+#   docker node update --label-add patroni.member=a MANAGER_NODE
+#   docker node update --label-add patroni.member=b WORKER_NODE_1
+#   docker node update --label-add patroni.member=c WORKER_NODE_2
+#
+# Депой (из корня репозитория):
+#   docker stack deploy --with-registry-auth -c infra/patroni/stack.yml postgres-ha
+
+services:
+  etcd0:
+    image: docker.io/bitnami/etcd:3.5.17
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_NAME=etcd0
+      - ETCD_INITIAL_CLUSTER_TOKEN=restful-ha-etcd-cluster
+      - ETCD_INITIAL_CLUSTER=etcd0=http://etcd0:2380,etcd1=http://etcd1:2380,etcd2=http://etcd2:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_LOG_LEVEL=info
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd0:2380
+    hostname: etcd0
+    volumes:
+      - etcd_data_0:/bitnami/etcd
+    networks:
+      - patroni_int
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.patroni.member == a
+      restart_policy:
+        condition: on-failure
+
+  etcd1:
+    image: docker.io/bitnami/etcd:3.5.17
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_NAME=etcd1
+      - ETCD_INITIAL_CLUSTER_TOKEN=restful-ha-etcd-cluster
+      - ETCD_INITIAL_CLUSTER=etcd0=http://etcd0:2380,etcd1=http://etcd1:2380,etcd2=http://etcd2:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_LOG_LEVEL=info
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd1:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd1:2380
+    hostname: etcd1
+    volumes:
+      - etcd_data_1:/bitnami/etcd
+    networks:
+      - patroni_int
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.patroni.member == b
+      restart_policy:
+        condition: on-failure
+
+  etcd2:
+    image: docker.io/bitnami/etcd:3.5.17
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_NAME=etcd2
+      - ETCD_INITIAL_CLUSTER_TOKEN=restful-ha-etcd-cluster
+      - ETCD_INITIAL_CLUSTER=etcd0=http://etcd0:2380,etcd1=http://etcd1:2380,etcd2=http://etcd2:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_LOG_LEVEL=info
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd2:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd2:2380
+    hostname: etcd2
+    volumes:
+      - etcd_data_2:/bitnami/etcd
+    networks:
+      - patroni_int
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.patroni.member == c
+      restart_policy:
+        condition: on-failure
+
+  patroni_spilo_a:
+    image: ghcr.io/zalando/spilo-15:3.2-p1
+    hostname: spilo-a
+    environment:
+      - SCOPE=restful_patroni
+      - PATRONI_NAME=spilo-a
+      - 'PATRONI_TAGS={"failover_priority":100}'
+      - ETCD_HOSTS='"etcd0:2379","etcd1:2379","etcd2:2379"'
+      - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
+      - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD:?unset_POSTGRES_SUPERUSER_PASSWORD}
+      - ALLOW_NOSSL=true
+    volumes:
+      - patroni_pgdata_a:/home/postgres/pgroot
+    networks:
+      - patroni_int
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.patroni.member == a
+      restart_policy:
+        condition: on-failure
+
+  patroni_spilo_b:
+    image: ghcr.io/zalando/spilo-15:3.2-p1
+    hostname: spilo-b
+    environment:
+      - SCOPE=restful_patroni
+      - PATRONI_NAME=spilo-b
+      - 'PATRONI_TAGS={"failover_priority":55}'
+      - ETCD_HOSTS='"etcd0:2379","etcd1:2379","etcd2:2379"'
+      - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
+      - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD:?unset_POSTGRES_SUPERUSER_PASSWORD}
+      - ALLOW_NOSSL=true
+    volumes:
+      - patroni_pgdata_b:/home/postgres/pgroot
+    networks:
+      - patroni_int
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.patroni.member == b
+      restart_policy:
+        condition: on-failure
+
+  patroni_spilo_c:
+    image: ghcr.io/zalando/spilo-15:3.2-p1
+    hostname: spilo-c
+    environment:
+      - SCOPE=restful_patroni
+      - PATRONI_NAME=spilo-c
+      - 'PATRONI_TAGS={"failover_priority":10}'
+      - ETCD_HOSTS='"etcd0:2379","etcd1:2379","etcd2:2379"'
+      - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
+      - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD:?unset_POSTGRES_SUPERUSER_PASSWORD}
+      - ALLOW_NOSSL=true
+    volumes:
+      - patroni_pgdata_c:/home/postgres/pgroot
+    networks:
+      - patroni_int
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.patroni.member == c
+      restart_policy:
+        condition: on-failure
+
+  pg_haproxy:
+    image: docker.io/library/haproxy:2.9-alpine
+    configs:
+      - source: patroni_haproxy_cfg
+        target: /usr/local/etc/haproxy/haproxy.cfg
+        mode: 0444
+    networks:
+      - patroni_int
+      - backend_app_net
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+
+networks:
+  patroni_int:
+    driver: overlay
+    driver_opts:
+      com.docker.network.driver.mtu: '1200'
+  backend_app_net:
+    external: true
+    name: ${RESTFUL_BACKEND_NET_NAME:?unset_RESTFUL_BACKEND_NET_NAME}
+
+volumes:
+  etcd_data_0:
+  etcd_data_1:
+  etcd_data_2:
+  patroni_pgdata_a:
+  patroni_pgdata_b:
+  patroni_pgdata_c:
+
+configs:
+  patroni_haproxy_cfg:
+    file: ./haproxy.cfg
