@@ -58,12 +58,36 @@ export POSTGRES_SUPERUSER_PASSWORD='*****'
 
 ## Деплой HA-стека
 
+Подставь переменные (как минимум пароль суперпользователя; имя overlay по умолчанию **`restful-slice_backend_net`**, если не задано **`RESTFUL_BACKEND_NET_NAME`**):
+
+```bash
+set -a && [ -f .env ] && . ./.env; set +a
+export RESTFUL_BACKEND_NET_NAME="${RESTFUL_BACKEND_NET_NAME:-restful-slice_backend_net}"
+export POSTGRES_SUPERUSER="${POSTGRES_SUPERUSER:-$POSTGRES_USER}"
+export POSTGRES_SUPERUSER_PASSWORD="${POSTGRES_SUPERUSER_PASSWORD:-$POSTGRES_PASSWORD}"
+```
+
 Из **корня репозитория** (путь `./haproxy.cfg` задаётся относительно каталога `infra/patroni`):
 
 ```bash
+infra/scripts/deploy-postgres-ha.sh
+# или напрямую:
 docker stack deploy --with-registry-auth -c infra/patroni/stack.yml postgres-ha
+
 docker stack services postgres-ha
 ```
+
+### etcd в `Pending`: «scheduling constraints not satisfied»
+
+Часто это **устаревшая задача** до того, как на ноду добавили **`patroni.member`**. После проверки меток (`docker node inspect … --format '{{json .Spec.Labels}}'`):
+
+```bash
+for s in postgres-ha_etcd0 postgres-ha_etcd1 postgres-ha_etcd2; do
+  docker service update --force "$s"
+done
+```
+
+Если не помогло — для нужного члена циклически **`scale=0`** и **`scale=1`** (данные etcd на томах не трогаются; если задача так и ни разу не была `Running`, потерять нечего).
 
 Проверка лидера (любая задача с Spilo или HAProxy на overlay `patroni_int`):
 

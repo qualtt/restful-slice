@@ -9,7 +9,9 @@ version: '3.8'
 #   docker node update --label-add patroni.member=b WORKER_NODE_1
 #   docker node update --label-add patroni.member=c WORKER_NODE_2
 #
-# Депой (из корня репозитория):
+# Депой (из корня репозитория); в shell нужны POSTGRES_SUPERUSER_* и сеть приложения:
+#   export RESTFUL_BACKEND_NET_NAME="${RESTFUL_BACKEND_NET_NAME:-restful-slice_backend_net}"
+#   export POSTGRES_SUPERUSER_PASSWORD="..."   # как POSTGRES_PASSWORD / из .env
 #   docker stack deploy --with-registry-auth -c infra/patroni/stack.yml postgres-ha
 
 services:
@@ -100,7 +102,7 @@ services:
       - 'PATRONI_TAGS={"failover_priority":100}'
       - ETCD_HOSTS='"etcd0:2379","etcd1:2379","etcd2:2379"'
       - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
-      - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD:?unset_POSTGRES_SUPERUSER_PASSWORD}
+      - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD}
       - ALLOW_NOSSL=true
     volumes:
       - patroni_pgdata_a:/home/postgres/pgroot
@@ -123,7 +125,7 @@ services:
       - 'PATRONI_TAGS={"failover_priority":55}'
       - ETCD_HOSTS='"etcd0:2379","etcd1:2379","etcd2:2379"'
       - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
-      - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD:?unset_POSTGRES_SUPERUSER_PASSWORD}
+      - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD}
       - ALLOW_NOSSL=true
     volumes:
       - patroni_pgdata_b:/home/postgres/pgroot
@@ -146,7 +148,7 @@ services:
       - 'PATRONI_TAGS={"failover_priority":10}'
       - ETCD_HOSTS='"etcd0:2379","etcd1:2379","etcd2:2379"'
       - PGUSER_SUPERUSER=${POSTGRES_SUPERUSER:-postgres_admin}
-      - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD:?unset_POSTGRES_SUPERUSER_PASSWORD}
+      - PGPASSWORD_SUPERUSER=${POSTGRES_SUPERUSER_PASSWORD}
       - ALLOW_NOSSL=true
     volumes:
       - patroni_pgdata_c:/home/postgres/pgroot
@@ -184,7 +186,8 @@ networks:
       com.docker.network.driver.mtu: '1200'
   backend_app_net:
     external: true
-    name: ${RESTFUL_BACKEND_NET_NAME:?unset_RESTFUL_BACKEND_NET_NAME}
+    # Дефолт совпадает с CI и docker-stack.yml; переопредели через env при другом имени overlay.
+    name: ${RESTFUL_BACKEND_NET_NAME:-restful-slice_backend_net}
 
 volumes:
   etcd_data_0:

@@ -61,7 +61,7 @@ done
 echo "[wait-postgres-ha] TIMEOUT после $MAX_TRIES попыток — диагностика:" >&2
 docker stack services "$STACK" >&2 || true
 echo "--- etcd0 ---" >&2
-docker service ps "${STACK}_etcd0" --no-trunc 2>&2 | head -20 || true
+docker service ps "${STACK}_etcd0" --no-trunc >&2 | head -20 || true
 echo "--- patroni_spilo_a ---" >&2
-docker service ps "${STACK}_patroni_spilo_a" --no-trunc 2>&2 | head -20 || true
+docker service ps "${STACK}_patroni_spilo_a" --no-trunc >&2 | head -20 || true
 exit 1
