@@ -45,7 +45,7 @@ jobs:
           done
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -69,7 +69,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -83,7 +83,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -105,7 +105,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           package-manager-cache: false
@@ -318,7 +318,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -328,13 +328,13 @@ jobs:
         run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # Отдельные вызовы: у postgres нет target; у slicer-api — только build-args и git context.
       - name: Build image — service (multi-stage target)
         if: |
           matrix.id == 'order-service' || matrix.id == 'inventory-service' || matrix.id == 'slicer-adapter'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           target: ${{ matrix.target }}
@@ -347,7 +347,7 @@ jobs:
 
       - name: Build image — frontend (SPA)
         if: matrix.id == 'frontend'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./apps/frontend
           file: ./apps/frontend/Dockerfile
@@ -360,7 +360,7 @@ jobs:
 
       - name: Build image — postgres (single-stage)
         if: matrix.id == 'postgres'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./infra/postgres
           push: false
@@ -372,7 +372,7 @@ jobs:
 
       - name: Build image — slicer-api (remote git context)
         if: matrix.id == 'slicer-api'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           build-args: ${{ matrix.build_args }}
