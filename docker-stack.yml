@@ -291,7 +291,10 @@ services:
     ports:
       - "80:8080"
     environment:
-      - SEC_RULE_ENGINE=On
+      # Имя переменной у образа CRS — MODSEC_RULE_ENGINE (не SEC_RULE_ENGINE).
+      # DetectionOnly: не отдаёт 403 на типичный JSON POST (CRS часто режет тела запросов к API).
+      # После стабилизации API можно вернуть On и точечные исключения в правилах.
+      - MODSEC_RULE_ENGINE=DetectionOnly
       # Совпадает с listen 8080 (нельзя PORT=80 — non-root).
       - PORT=8080
     # Встроенный HEALTHCHECK образа бьёт в https://localhost:8443/healthz; наш vhost только HTTP :8080 —

@@ -168,7 +168,7 @@ services:
     ports:
       - "80:8080"
     environment:
-      - SEC_RULE_ENGINE=On
+      - MODSEC_RULE_ENGINE=DetectionOnly
       - PORT=8080
     volumes:
       - ./infra/nginx/default.conf.template:/etc/nginx/templates/conf.d/default.conf.template:ro
