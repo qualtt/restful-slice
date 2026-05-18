@@ -144,8 +144,8 @@ jobs:
           LOG_LEVEL=INFO
           EOF
 
-      - name: Start lightweight API stack for pull requests
-        if: github.event_name == 'pull_request'
+      - name: Start lightweight API stack for non-main refs
+        if: github.ref != 'refs/heads/main'
         run: docker compose up --build -d postgres rabbitmq minio inventory_service order_service gateway
 
       - name: Start full API stack for main
