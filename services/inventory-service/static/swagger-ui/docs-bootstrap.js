@@ -1,6 +1,6 @@
 window.addEventListener("load", () => {
   const root = document.getElementById("swagger-ui");
-  const swagger = window.SwaggerUIBundle || window.SwaggerUICore;
+  const swagger = window.SwaggerUIBundle;
   if (!root || !swagger) {
     return;
   }
@@ -18,6 +18,11 @@ window.addEventListener("load", () => {
     defaultModelsExpandDepth: 1,
     docExpansion: "list",
     oauth2RedirectUrl: root.dataset.oauth2RedirectUrl,
-    presets: swagger.presets ? [swagger.presets.apis] : undefined,
+    presets: [swagger.presets.apis, swagger.SwaggerUIStandalonePreset].filter(Boolean),
   });
+
+  const defaultApiKey = root.dataset.defaultApiKey;
+  if (defaultApiKey && typeof ui.preauthorizeApiKey === "function") {
+    ui.preauthorizeApiKey("APIKeyHeader", defaultApiKey);
+  }
 });

@@ -299,7 +299,7 @@ def _render_swagger_html(title: str, openapi_url: str, oauth2_redirect_url: str)
     data-default-api-key="{SWAGGER_UI_DEFAULT_API_KEY}"
     data-title="{title}"
   ></div>
-  <script src="/api/orders/docs-assets/swagger-ui/swagger-ui.js"></script>
+  <script src="/api/orders/docs-assets/swagger-ui/swagger-ui-bundle.js"></script>
   <script src="/api/orders/docs-assets/swagger-ui/docs-bootstrap.js"></script>
 </body>
 </html>"""
