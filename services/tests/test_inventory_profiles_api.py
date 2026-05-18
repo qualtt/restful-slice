@@ -11,6 +11,24 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 INVENTORY_SERVICE_DIR = ROOT_DIR / "services" / "inventory-service"
 
 
+def _reset_inventory_modules() -> None:
+    for module_name in (
+        "core",
+        "core.database",
+        "core.stock",
+        "core.calculator",
+        "core.order_manager",
+        "main",
+    ):
+        sys.modules.pop(module_name, None)
+
+
+def _install_inventory_package() -> None:
+    package = types.ModuleType("core")
+    package.__path__ = [str(INVENTORY_SERVICE_DIR / "core")]
+    sys.modules["core"] = package
+
+
 class FakeInventoryDB:
     def __init__(self):
         self.inventory = {}
@@ -68,10 +86,11 @@ class FakeInventoryDB:
 
 def load_inventory_app():
     sys.path.insert(0, str(INVENTORY_SERVICE_DIR))
-
+    _reset_inventory_modules()
     fake_database_module = types.ModuleType("core.database")
     fake_database_module.db_stub = FakeInventoryDB()
     sys.modules["core.database"] = fake_database_module
+    _install_inventory_package()
     sys.modules.pop("main", None)
 
     return importlib.import_module("main")

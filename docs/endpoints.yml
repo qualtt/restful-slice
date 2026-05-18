@@ -5,6 +5,7 @@ info:
   version: 0.1.0
   description: |
     REST API для платформы 3D-печати.
+    Runtime identity is API-key based; the key identifies the operator session and scopes telemetry/orders.
     Включает два сервиса:
     - **Order Service** (`/api/orders`) — приём заказов, загрузка STL, отслеживание статуса.
     - **Inventory & Pricing Service** (`/api/inventory`) — профили печати, материалы, остатки.
@@ -35,6 +36,7 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
+      description: API key that identifies the active operator session.
 
   schemas:
     ErrorResponse:

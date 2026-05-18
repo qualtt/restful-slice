@@ -18,7 +18,7 @@ export function AppShell({ children }: PropsWithChildren) {
       </header>
       <main className="flex-1">{children}</main>
       <footer className="mt-8 text-center text-xs text-gray-600 border-t border-gray-400 pt-2">
-        <p>&copy; 2002 Restful Slice. All rights reserved</p>
+        <p>&copy; 2002 Restful Slice. Operator sessions are key-scoped.</p>
       </footer>
     </div>
   );

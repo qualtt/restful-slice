@@ -1,6 +1,7 @@
 import json
 import logging
 from contextlib import asynccontextmanager
+from functools import lru_cache
 
 import httpx
 from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Query, Request
@@ -14,6 +15,33 @@ from core.minio_client import OrderMinioClient
 from core.rabbit_client import publish_slice_requested, start_results_consumer
 
 logger = logging.getLogger(__name__)
+
+_API_KEY_TO_USER_ID = {
+    "demo-api-key": "user-0001",
+    "sample-api-key": "user-0002",
+}
+_ORDER_TO_API_KEY: dict[str, str] = {}
+_ORDER_TO_USER_ID: dict[str, str] = {}
+
+
+@lru_cache
+def resolve_user_id_from_api_key(api_key: str) -> str:
+    return _API_KEY_TO_USER_ID.get(api_key, "anonymous")
+
+
+def get_request_api_key(request: Request) -> str | None:
+    return request.headers.get("x-api-key")
+
+
+def get_request_user_id(request: Request) -> str:
+    api_key = get_request_api_key(request)
+    if not api_key:
+        return "anonymous"
+    return resolve_user_id_from_api_key(api_key)
+
+
+def get_order_api_key(order_id: str) -> str | None:
+    return _ORDER_TO_API_KEY.get(order_id)
 
 
 def fail_order(order_id: str, error_message: str) -> None:
@@ -51,6 +79,7 @@ def handle_slicing_result(event_json: str) -> None:
         price = {"amount": "0.00", "currency": "RUB"}
         if profile_id is not None:
             try:
+                api_key = get_order_api_key(order_id)
                 resp = httpx.post(
                     f"{settings.inventory_url}/api/internal/inventory/reserve",
                     json={
@@ -58,6 +87,7 @@ def handle_slicing_result(event_json: str) -> None:
                         "profileId": profile_id,
                         "weightGrams": weight,
                     },
+                    headers={"X-API-Key": api_key} if api_key else None,
                     timeout=10.0,
                 )
                 if resp.status_code == 200:
@@ -244,7 +274,9 @@ async def upload_stl_file(file: UploadFile = File(...)):
 
 
 @router.post("", response_model=OrderResponse, status_code=202)
-async def create_order(payload: CreateOrderRequest):
+async def create_order(payload: CreateOrderRequest, request: Request):
+    user_id = get_request_user_id(request)
+    api_key = get_request_api_key(request)
     try:
         order = order_db.create_order(str(payload.fileId), payload.profileId)
     except KeyError:
@@ -261,6 +293,9 @@ async def create_order(payload: CreateOrderRequest):
         object_key = file_record.get(
             "objectKey"
         ) or f"stl/orders/{payload.fileId}/{file_record.get('filename', 'model.stl')}"
+        if api_key:
+            _ORDER_TO_API_KEY[order["orderId"]] = api_key
+        _ORDER_TO_USER_ID[order["orderId"]] = user_id
         order_db.update_status(order["orderId"], OrderStatus.SLICING.value)
         publish_slice_requested(order["orderId"], object_key, payload.profileId)
     except Exception:
@@ -306,6 +341,7 @@ async def get_order(orderId: UUID4):
 async def cancel_order(orderId: UUID4):
     try:
         order = order_db.get_order(str(orderId))
+        _ORDER_TO_USER_ID.pop(str(orderId), None)
         if order["status"] not in [
             OrderStatus.PENDING.value,
             OrderStatus.SLICING.value,

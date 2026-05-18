@@ -1,3 +1,4 @@
+from functools import lru_cache
 from fastapi import FastAPI, APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, UUID4
@@ -5,6 +6,24 @@ from typing import Optional
 
 from core.stock import InventoryStock, InsufficientStockError
 from core.calculator import Calculator
+
+_API_KEY_TO_USER_ID = {
+    "demo-api-key": "user-0001",
+    "sample-api-key": "user-0002",
+}
+
+
+@lru_cache
+def resolve_user_id_from_api_key(api_key: str) -> str:
+    return _API_KEY_TO_USER_ID.get(api_key, "anonymous")
+
+
+def get_request_user_id(request: Request) -> str:
+    api_key = request.headers.get("x-api-key")
+    if not api_key:
+        return "anonymous"
+    return resolve_user_id_from_api_key(api_key)
+
 
 app = FastAPI(
     title="Inventory Service",
@@ -254,7 +273,8 @@ async def get_material(materialId: int):
 
 
 @internal_router.post("/reserve")
-async def reserve_material(payload: ReserveRequest):
+async def reserve_material(payload: ReserveRequest, request: Request):
+    request.state.user_id = get_request_user_id(request)
     profile = next(
         (
             p

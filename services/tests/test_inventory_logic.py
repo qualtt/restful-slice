@@ -1,15 +1,35 @@
 import sys
 import os
+import types
 import pytest
 
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../inventory-service"))
+INVENTORY_SERVICE_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../inventory-service")
 )
 
-if "core" in sys.modules:
-    del sys.modules["core"]
-if "core.order_manager" in sys.modules:
-    del sys.modules["core.order_manager"]
+
+def _reset_inventory_modules() -> None:
+    for module_name in (
+        "core",
+        "core.database",
+        "core.stock",
+        "core.calculator",
+        "core.order_manager",
+        "main",
+    ):
+        sys.modules.pop(module_name, None)
+
+
+def _install_inventory_package() -> None:
+    package = types.ModuleType("core")
+    package.__path__ = [os.path.join(INVENTORY_SERVICE_DIR, "core")]
+    sys.modules["core"] = package
+
+
+sys.path.insert(0, INVENTORY_SERVICE_DIR)
+
+_reset_inventory_modules()
+_install_inventory_package()
 
 from core.calculator import Calculator
 from core.stock import InventoryStock, InsufficientStockError
@@ -45,6 +65,8 @@ class TestCostCalculator:
 
 class TestInventoryStock:
     def setup_method(self):
+        _reset_inventory_modules()
+        _install_inventory_package()
         from core.database import db_stub
 
         db_stub.reset_stub()

@@ -79,7 +79,7 @@ class OrderManager:
         # SELECT * FROM files WHERE id = ...
         return self.db.select("files", file_id)
 
-    def create_order(self, file_id: str, profile_id: int) -> dict:
+    def create_order(self, file_id: str, profile_id: int, api_key_identity: str | None = None) -> dict:
         if not self.get_file(file_id):
             raise KeyError(f"Файл с ID {file_id} не найден")
 
@@ -91,6 +91,7 @@ class OrderManager:
             "status": OrderStatus.PENDING.value,
             "fileId": file_id,
             "profileId": profile_id,
+            "apiKeyIdentity": api_key_identity,
             "slicingResult": None,
             "errorMessage": None,
             "createdAt": now_dt.isoformat(),
@@ -100,6 +101,7 @@ class OrderManager:
             "status": payload["status"],
             "fileId": file_id,
             "profileId": profile_id,
+            "apiKeyIdentity": api_key_identity,
             "slicingResult": None,
             "errorMessage": None,
             "createdAt": now_dt,

@@ -65,18 +65,20 @@ class PostgresDB:
                 if table == "reservations":
                     cur.execute(
                         """
-                        INSERT INTO reservations (order_id, reservation_id, material_id, amount)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO reservations (order_id, reservation_id, material_id, amount, api_key_identity)
+                        VALUES (%s, %s, %s, %s, %s)
                         ON CONFLICT (order_id) DO UPDATE
                         SET reservation_id = EXCLUDED.reservation_id,
                             material_id = EXCLUDED.material_id,
-                            amount = EXCLUDED.amount
+                            amount = EXCLUDED.amount,
+                            api_key_identity = EXCLUDED.api_key_identity
                         """,
                         (
                             record_id,
                             data["reservation_id"],
                             int(data["material_id"]),
                             float(data["amount"]),
+                            data.get("api_key_identity"),
                         ),
                     )
                     return
@@ -101,7 +103,7 @@ class PostgresDB:
 
                 if table == "reservations":
                     cur.execute(
-                        "SELECT order_id, reservation_id, material_id, amount FROM reservations WHERE order_id = %s",
+                        "SELECT order_id, reservation_id, material_id, amount, api_key_identity FROM reservations WHERE order_id = %s",
                         (record_id,),
                     )
                     row = cur.fetchone()
@@ -112,6 +114,7 @@ class PostgresDB:
                         "reservation_id": str(row["reservation_id"]),
                         "material_id": row["material_id"],
                         "amount": float(row["amount"]),
+                        "api_key_identity": row.get("api_key_identity"),
                     }
 
                 raise ValueError(f"Unsupported table: {table}")
@@ -133,7 +136,7 @@ class PostgresDB:
 
                 if table == "reservations":
                     cur.execute(
-                        "SELECT order_id, reservation_id, material_id, amount FROM reservations"
+                        "SELECT order_id, reservation_id, material_id, amount, api_key_identity FROM reservations"
                     )
                     return [
                         {
@@ -141,6 +144,7 @@ class PostgresDB:
                             "reservation_id": str(row["reservation_id"]),
                             "material_id": row["material_id"],
                             "amount": float(row["amount"]),
+                            "api_key_identity": row.get("api_key_identity"),
                         }
                         for row in cur.fetchall()
                     ]
@@ -170,6 +174,9 @@ class PostgresDB:
                     if "amount" in updates:
                         set_parts.append("amount = %s")
                         values.append(float(updates["amount"]))
+                    if "api_key_identity" in updates:
+                        set_parts.append("api_key_identity = %s")
+                        values.append(updates["api_key_identity"])
 
                     if set_parts:
                         values.append(record_id)
@@ -219,6 +226,7 @@ class PostgresDB:
                 reservation_id UUID NOT NULL,
                 material_id INTEGER NOT NULL REFERENCES inventory(material_id) ON DELETE RESTRICT,
                 amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+                api_key_identity TEXT,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
             """
