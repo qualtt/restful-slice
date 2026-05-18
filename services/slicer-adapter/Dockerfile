@@ -5,6 +5,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH="/app"
 
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 # --- Этап 1: Сборка зависимостей (Builder) ---
 FROM base AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends gcc build-essential && \
@@ -36,6 +38,9 @@ RUN mkdir -p /temp && chown appuser:appuser /temp
 
 # Копируем код (он будет read-only для appuser)
 COPY . /app/
+
+RUN rm -rf /usr/local/lib/python3.11/site-packages/setuptools* \
+    /usr/local/lib/python3.11/site-packages/wheel*
 
 USER appuser
 EXPOSE 8080

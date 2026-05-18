@@ -4,6 +4,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH"
 
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 # --- Этап 1: Сборка зависимостей (Builder) ---
 FROM base AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends gcc build-essential && \
@@ -28,6 +30,9 @@ WORKDIR /app
 RUN groupadd -r appuser && useradd -r -g appuser -s /usr/sbin/nologin appuser
 COPY --from=builder /opt/venv /opt/venv
 COPY . /app/
+
+RUN rm -rf /usr/local/lib/python3.11/site-packages/setuptools* \
+    /usr/local/lib/python3.11/site-packages/wheel*
 
 USER appuser
 EXPOSE 8081
