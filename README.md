@@ -11,20 +11,14 @@
   <img src="https://img.shields.io/badge/Linter-Ruff-D7FF64?style=flat&logo=python&logoColor=black" alt="Ruff"/>
   <img src="https://img.shields.io/badge/Pre--commit-Enabled-fab040?style=flat&logo=pre-commit&logoColor=white" alt="Pre-commit"/>
   <img src="https://img.shields.io/badge/Code_Style-Black-000000?style=flat" alt="Black"/>
-  <img src="https://img.shields.io/badge/License-BSD-yellow.svg" alt="License BSD"/>
-</p>
-<p align="center">
-  <img src="https://img.shields.io/badge/Works_on-My_Machine-brightgreen?style=flat" alt="Works on my machine"/>
-  <img src="https://img.shields.io/badge/Friday_Deploy-Enabled-critical?style=flat&logo=fire" alt="Friday Deploy"/>
-  <img src="https://img.shields.io/badge/Powered_by-Coffee_%26_Pain-6F4E37?style=flat" alt="Powered by Coffee and Pain"/>
-  <img src="https://img.shields.io/badge/Maintained%3F-Mostly-orange?style=flat" alt="Maintained"/>
+  <img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg" alt="License AGPL-3.0"/>
 </p>
 
-Headless-платформа для приёма заказов на 3D-печать, асинхронной нарезки моделей, резерва материалов и просмотра статусов в браузере.
+Платформа для приёма заказов на 3D-печать, асинхронной нарезки моделей, резерва материалов и просмотра статусов в браузере.
 
 ## Обзор
 
-`restful-slice` объединяет React-дашборд, два FastAPI-сервиса, асинхронный воркер нарезки и инфраструктуру для файлов, очередей, БД и деплоя.
+`restful-slice` объединяет React-дашборд, два FastAPI-сервиса, воркер нарезки и инфраструктуру для файлов, очередей, БД и деплоя.
 
 Текущий поток такой:
 
@@ -38,12 +32,12 @@ Headless-платформа для приёма заказов на 3D-печа�
 
 ## Что лежит в репозитории
 
-- `apps/frontend` - React + Vite дашборд для загрузки моделей, выбора профиля, просмотра заказов и consent-based telemetry.
-- `services/order-service` - приём файлов и заказов, публикация в RabbitMQ, загрузка в MinIO, приём результатов, telemetry ingestion.
+- `apps/frontend` - React + Vite дашборд для загрузки моделей, выбора профиля, просмотра заказов и отправки телеметрии только после согласия.
+- `services/order-service` - приём файлов и заказов, публикация в RabbitMQ, загрузка в MinIO, приём результатов и телеметрии.
 - `services/inventory-service` - каталог материалов и профилей, резервирование, pricing.
 - `services/slicer-adapter` - воркер, который читает задачи, качает файлы из MinIO, вызывает `slicer-api`, публикует результат.
 - `infra/` - локальный Postgres bootstrap, nginx gateway, monitoring, Swarm/Patroni assets и helper scripts.
-- `tests/postman` - versioned Postman/Newman коллекции и fixture profiles.
+- `tests/postman` - Postman/Newman коллекции и fixture profiles.
 - `docs/` - OpenAPI/AsyncAPI контракты и заметки по проекту.
 
 ## Возможности
@@ -75,7 +69,7 @@ Headless-платформа для приёма заказов на 3D-печа�
 
 ## Архитектура
 
-Так читать проще: сначала edge-слой, потом бизнес-сервисы, потом асинхронную нарезку.
+Ниже схема по слоям: сначала edge, потом сервисы, потом фоновая нарезка.
 
 ```mermaid
 flowchart LR
@@ -352,7 +346,7 @@ INVENTORY_URL=http://inventory_service:8081
 docker compose up --build -d
 ```
 
-Поднимаются:
+После запуска поднимутся:
 
 - `postgres`
 - `rabbitmq`
@@ -498,7 +492,7 @@ docker compose up --build -d
 
 ### HA PostgreSQL
 
-Для production-grade Postgres HA в репозитории есть отдельный `postgres-ha` stack:
+Для HA Postgres в репозитории есть отдельный `postgres-ha` stack:
 
 - `Patroni`
 - `Spilo`
@@ -551,4 +545,4 @@ docker compose up --build -d
 
 ## License
 
-[BSD License](LICENSE)
+[AGPL-3.0 License](LICENSE)
