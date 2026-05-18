@@ -1,0 +1,108 @@
+name: Deploy Load Balancer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/load-balancer-deploy.yml
+      - infra/load-balancer/**
+      - .sops.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: load-balancer-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy_load_balancer:
+    name: Deploy streetkots.ru load balancer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install sops
+        run: |
+          curl -fsSL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 -o /usr/local/bin/sops
+          chmod +x /usr/local/bin/sops
+          sops --version
+
+      - name: Decrypt load balancer env
+        env:
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+        run: |
+          if [ -z "${SOPS_AGE_KEY:-}" ]; then
+            echo "SOPS_AGE_KEY secret is not configured" >&2
+            exit 1
+          fi
+
+          printf '%s\n' "$SOPS_AGE_KEY" > "$RUNNER_TEMP/sops-age-key.txt"
+          chmod 600 "$RUNNER_TEMP/sops-age-key.txt"
+
+          export SOPS_AGE_KEY_FILE="$RUNNER_TEMP/sops-age-key.txt"
+          sops --decrypt --input-type dotenv --output-type dotenv \
+            infra/load-balancer/load-balancer.enc.env > "$RUNNER_TEMP/load-balancer.env"
+
+      - name: Prepare SSH auth wrappers
+        env:
+          LB_SSH_PRIVATE_KEY: ${{ secrets.LB_SSH_PRIVATE_KEY }}
+          LB_SSH_PASSWORD: ${{ secrets.LB_SSH_PASSWORD }}
+        run: |
+          mkdir -p "$HOME/.ssh" "$RUNNER_TEMP/bin"
+          chmod 700 "$HOME/.ssh" "$RUNNER_TEMP/bin"
+
+          if [ -n "${LB_SSH_PRIVATE_KEY:-}" ]; then
+            printf '%s\n' "$LB_SSH_PRIVATE_KEY" > "$HOME/.ssh/load-balancer.key"
+            chmod 600 "$HOME/.ssh/load-balancer.key"
+
+            printf '%s\n' \
+              '#!/usr/bin/env bash' \
+              'exec ssh -i "$HOME/.ssh/load-balancer.key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"' \
+              > "$RUNNER_TEMP/bin/lb-ssh"
+
+            printf '%s\n' \
+              '#!/usr/bin/env bash' \
+              'exec scp -i "$HOME/.ssh/load-balancer.key" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"' \
+              > "$RUNNER_TEMP/bin/lb-scp"
+          elif [ -n "${LB_SSH_PASSWORD:-}" ]; then
+            sudo apt-get update
+            sudo apt-get install -y sshpass
+            printf 'SSHPASS=%s\n' "$LB_SSH_PASSWORD" >> "$GITHUB_ENV"
+
+            printf '%s\n' \
+              '#!/usr/bin/env bash' \
+              'exec sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"' \
+              > "$RUNNER_TEMP/bin/lb-ssh"
+
+            printf '%s\n' \
+              '#!/usr/bin/env bash' \
+              'exec sshpass -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$@"' \
+              > "$RUNNER_TEMP/bin/lb-scp"
+          else
+            echo "Configure LB_SSH_PRIVATE_KEY or LB_SSH_PASSWORD in repository secrets" >&2
+            exit 1
+          fi
+
+          chmod +x "$RUNNER_TEMP/bin/lb-ssh" "$RUNNER_TEMP/bin/lb-scp"
+          printf 'LB_SSH_BIN=%s\n' "$RUNNER_TEMP/bin/lb-ssh" >> "$GITHUB_ENV"
+          printf 'LB_SCP_BIN=%s\n' "$RUNNER_TEMP/bin/lb-scp" >> "$GITHUB_ENV"
+
+      - name: Deploy nginx config to VPS
+        env:
+          LB_SSH_BIN: ${{ env.LB_SSH_BIN }}
+          LB_SCP_BIN: ${{ env.LB_SCP_BIN }}
+        run: |
+          chmod +x infra/load-balancer/deploy.sh
+          bash infra/load-balancer/deploy.sh "$RUNNER_TEMP/load-balancer.env"
+
+      - name: Verify public endpoint
+        run: |
+          set -a
+          . "$RUNNER_TEMP/load-balancer.env"
+          set +a
+
+          curl -IksS "https://${LB_DOMAIN}"
+          curl -fsS "https://${LB_DOMAIN}/health"
