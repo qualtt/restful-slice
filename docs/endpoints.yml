@@ -138,6 +138,11 @@ components:
         price:
           $ref: '#/components/schemas/Money'
 
+    DownloadableGcode:
+      type: string
+      format: binary
+      description: Скачиваемый G-code файл, доступен после статуса `priced`
+
     Order:
       type: object
       required: [orderId, status, fileId, profileId, createdAt, updatedAt]
@@ -563,6 +568,7 @@ paths:
 
         Клиент должен периодически опрашивать этот эндпоинт (polling),
         пока статус не перейдёт в `priced`, `failed` или `cancelled`.
+        После `priced` G-code можно скачать через `GET /api/orders/{orderId}/download`.
       operationId: getOrder
       parameters:
         - $ref: '#/components/parameters/OrderIdPath'
@@ -658,6 +664,48 @@ paths:
               example:
                 code: ORDER_NOT_CANCELLABLE
                 message: "Order in status 'printing' cannot be cancelled"
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/orders/{orderId}/download:
+    get:
+      tags: [Orders]
+      summary: Скачать нарезанный G-code
+      description: |
+        Возвращает `.gcode` файл для заказа после успешной нарезки.
+        Доступен только владельцу заказа.
+      operationId: downloadOrderGcode
+      parameters:
+        - $ref: '#/components/parameters/OrderIdPath'
+      responses:
+        '200':
+          description: Скачиваемый G-code
+          content:
+            application/octet-stream:
+              schema:
+                $ref: '#/components/schemas/DownloadableGcode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Нет доступа к заказу
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: FORBIDDEN
+                message: You do not have access to this order
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: G-code ещё не готов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                code: GCODE_NOT_READY
+                message: Sliced model is not available for download yet
         '500':
           $ref: '#/components/responses/InternalServerError'
 

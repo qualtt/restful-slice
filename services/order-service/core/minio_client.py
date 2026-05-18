@@ -1,5 +1,6 @@
 import io
 from minio import Minio
+from minio.error import S3Error
 from core.config import Settings
 
 
@@ -41,3 +42,9 @@ class OrderMinioClient:
             content_type="application/octet-stream",
         )
         return object_key
+
+    def stat_object(self, object_key: str):
+        return self._client.stat_object(self._bucket, object_key)
+
+    def get_object(self, object_key: str):
+        return self._client.get_object(self._bucket, object_key)
