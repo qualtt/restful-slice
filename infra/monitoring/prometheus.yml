@@ -2,14 +2,38 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
+  # Swarm tasks + порт без publish на хост: см. dockerswarm_sd port.
+  # instance = имя ноды Swarm (как `docker node ls`), а не overlay-IP таска.
   - job_name: 'node-exporter'
-    dns_sd_configs:
-      - names: ['tasks.monitoring_node-exporter']
-        type: 'A'
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: tasks
         port: 9100
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
+        action: keep
+      - source_labels: [__meta_dockerswarm_service_label_prometheus_job]
+        regex: node-exporter
+        action: keep
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        regex: (.+)
+        replacement: ${1}:9100
+        target_label: instance
 
   - job_name: 'cadvisor'
-    dns_sd_configs:
-      - names: ['tasks.monitoring_cadvisor']
-        type: 'A'
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: tasks
         port: 8080
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
+        action: keep
+      - source_labels: [__meta_dockerswarm_service_label_prometheus_job]
+        regex: cadvisor
+        action: keep
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        regex: (.+)
+        replacement: ${1}:8080
+        target_label: instance

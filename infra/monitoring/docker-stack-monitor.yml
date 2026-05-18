@@ -8,6 +8,8 @@ services:
       - '--storage.tsdb.path=/prometheus'
     volumes:
       - prometheus_data:/prometheus
+      # Swarm service discovery + relabel instance → node hostname (не IP таска)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     configs:
       - source: prom_config_v2
         target: /etc/prometheus/prometheus.yml
@@ -61,9 +63,12 @@ services:
       - monitoring_net
     deploy:
       mode: global
+      labels:
+        prometheus-job: node-exporter
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.2 # Обновлено на стабильную новую версию
+    hostname: "{{.Node.Hostname}}"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -77,6 +82,8 @@ services:
       - monitoring_net
     deploy:
       mode: global
+      labels:
+        prometheus-job: cadvisor
 
   promtail:
     image: grafana/promtail:2.9.2
