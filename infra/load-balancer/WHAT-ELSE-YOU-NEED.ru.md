@@ -7,7 +7,7 @@
 | Gateway 1 | `155.212.221.216` |
 | Gateway 2 | `5.181.109.6`     |
 
-Порт по умолчанию **8080** — если gateway слушает другой порт, поменяйте в `configs/vps-c/nginx/example.com.conf` и `configs/vps-c/haproxy/haproxy.cfg`.
+В текущем стенде gateway слушают **80**. Если порт изменится, поправьте `LB_UPSTREAM_1` / `LB_UPSTREAM_2` в env либо обновите конфиг вручную.
 
 ---
 
