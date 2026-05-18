@@ -2,7 +2,7 @@ name: CI/CD pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, fix/trivy-vulns]
   pull_request:
     branches: [main]
 
@@ -144,8 +144,8 @@ jobs:
           LOG_LEVEL=INFO
           EOF
 
-      - name: Start lightweight API stack for pull requests
-        if: github.event_name == 'pull_request'
+      - name: Start lightweight API stack for non-main refs
+        if: github.ref != 'refs/heads/main'
         run: docker compose up --build -d postgres rabbitmq minio inventory_service order_service gateway
 
       - name: Start full API stack for main
@@ -338,6 +338,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           target: ${{ matrix.target }}
+          pull: true
           push: false
           load: true
           platforms: linux/amd64
@@ -351,6 +352,7 @@ jobs:
         with:
           context: ./apps/frontend
           file: ./apps/frontend/Dockerfile
+          pull: true
           push: false
           load: true
           platforms: linux/amd64
@@ -363,6 +365,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ./infra/postgres
+          pull: true
           push: false
           load: true
           platforms: linux/amd64
@@ -376,6 +379,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           build-args: ${{ matrix.build_args }}
+          pull: true
           push: false
           load: true
           platforms: linux/amd64

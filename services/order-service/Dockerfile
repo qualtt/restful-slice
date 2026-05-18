@@ -4,6 +4,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH"
 
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 # --- Этап 1: Сборка зависимостей (Builder) ---
 FROM base AS builder
 # Устанавливаем gcc на случай, если каким-то библиотекам нужна компиляция C-расширений
@@ -13,6 +15,7 @@ WORKDIR /build
 RUN python -m venv /opt/venv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip uninstall -y pip setuptools wheel
 
 # --- Этап 2: Локальная разработка (Development) ---
 FROM base AS development
@@ -34,6 +37,9 @@ COPY --from=builder /opt/venv /opt/venv
 
 # Копируем код. Владелец остается root:root. Приложение сможет только читать его!
 COPY . /app/
+
+RUN rm -rf /usr/local/lib/python3.11/site-packages/setuptools* \
+    /usr/local/lib/python3.11/site-packages/wheel*
 
 # Переключаемся на бесправного пользователя
 USER appuser
