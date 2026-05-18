@@ -1,8 +1,10 @@
 from functools import lru_cache
+from pathlib import Path
 from fastapi import FastAPI, APIRouter, HTTPException, Query, Request, Security
-from fastapi.openapi.docs import get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
+from fastapi.openapi.docs import get_swagger_ui_oauth2_redirect_html
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.security import APIKeyHeader
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, UUID4, Field, ConfigDict
 from typing import Optional
 
@@ -33,6 +35,11 @@ app = FastAPI(
     title="Inventory Service",
     docs_url=None,
     openapi_url="/api/inventory/openapi.json",
+)
+app.mount(
+    "/api/inventory/docs-assets",
+    StaticFiles(directory=Path(__file__).resolve().parent / "static"),
+    name="inventory-docs-assets",
 )
 
 
@@ -168,34 +175,36 @@ def _swagger_openapi_url(request: Request) -> str:
     return f"{root_path}{openapi_url}"
 
 
-def _inject_swagger_defaults(html: str) -> str:
-    html = html.replace("const ui = SwaggerUIBundle({", "window.ui = SwaggerUIBundle({")
-    script = f"""
-    <script>
-    window.addEventListener('load', () => {{
-      if (!window.ui) return;
-      window.ui.preauthorizeApiKey('APIKeyHeader', '{SWAGGER_UI_DEFAULT_API_KEY}');
-    }});
-    </script>
-    """
-    return html.replace("</body>", f"{script}</body>")
+def _render_swagger_html(title: str, openapi_url: str, oauth2_redirect_url: str) -> str:
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title}</title>
+  <link rel="stylesheet" href="/api/inventory/docs-assets/swagger-ui/swagger-ui.css">
+</head>
+<body>
+  <div
+    id="swagger-ui"
+    data-openapi-url="{openapi_url}"
+    data-oauth2-redirect-url="{oauth2_redirect_url}"
+    data-default-api-key="{SWAGGER_UI_DEFAULT_API_KEY}"
+    data-title="{title}"
+  ></div>
+  <script src="/api/inventory/docs-assets/swagger-ui/swagger-ui-bundle.js"></script>
+  <script src="/api/inventory/docs-assets/swagger-ui/docs-bootstrap.js"></script>
+</body>
+</html>"""
 
 
 @app.get("/api/inventory/docs", include_in_schema=False)
 async def custom_inventory_docs(request: Request) -> HTMLResponse:
-    swagger_ui = get_swagger_ui_html(
-        openapi_url=_swagger_openapi_url(request),
+    html = _render_swagger_html(
         title=f"{app.title} - Swagger UI",
+        openapi_url=_swagger_openapi_url(request),
         oauth2_redirect_url=_swagger_oauth2_redirect_path(request),
-        swagger_ui_parameters={
-            "persistAuthorization": True,
-            "displayRequestDuration": True,
-            "tryItOutEnabled": True,
-            "defaultModelsExpandDepth": 1,
-            "docExpansion": "list",
-        },
     )
-    html = _inject_swagger_defaults(swagger_ui.body.decode("utf-8"))
     return HTMLResponse(html)
 
 
