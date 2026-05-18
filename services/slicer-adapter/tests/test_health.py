@@ -6,7 +6,7 @@ import pytest
 from fastapi.responses import JSONResponse
 
 from src.clients.rabbit_client import JOBS_QUEUE, check_broker_reachable
-from src.main import health_check
+from src.main import health, health_check, health_live
 
 
 def _fake_settings(amqp_url: str = "amqp://guest:guest@127.0.0.1:5672/") -> MagicMock:
@@ -82,9 +82,26 @@ def test_health_check_ok_when_broker_check_succeeds(
     mock_blocking_connection.return_value = mock_conn
     mock_conn.channel.return_value = mock_ch
 
-    out = health_check()
+    with patch("src.main._check_minio", return_value="ok"), patch(
+        "src.main._check_orca", return_value="ok"
+    ), patch(
+        "src.main.worker_thread",
+        MagicMock(is_alive=MagicMock(return_value=True)),
+    ), patch(
+        "src.main.get_consumer_state",
+        return_value={"last_success": "2025-01-01T00:00:00Z", "last_error": None},
+    ):
+        out = health_check()
 
-    assert out == {"status": "healthy", "rabbitmq": "ok"}
+    assert out == {
+        "status": "healthy",
+        "rabbitmq": "ok",
+        "minio": "ok",
+        "orca": "ok",
+        "worker_thread_alive": True,
+        "last_success": "2025-01-01T00:00:00Z",
+        "last_error": None,
+    }
     mock_ch.queue_declare.assert_called_once_with(queue=JOBS_QUEUE, durable=True)
     mock_conn.close.assert_called_once()
 
@@ -104,7 +121,7 @@ def test_health_check_503_when_broker_raises(
     assert out.status_code == 503
     body = json.loads(out.body.decode())
     assert body["status"] == "unhealthy"
-    assert body["rabbitmq"] == "broker down"
+    assert body["error"] == "broker down"
 
 
 def test_health_check_truncates_rabbitmq_error_to_500_chars() -> None:
@@ -117,5 +134,39 @@ def test_health_check_truncates_rabbitmq_error_to_500_chars() -> None:
 
     assert isinstance(out, JSONResponse)
     body = json.loads(out.body.decode())
-    assert len(body["rabbitmq"]) == 500
-    assert body["rabbitmq"] == long_msg[:500]
+    assert len(body["error"]) == 500
+    assert body["error"] == long_msg[:500]
+
+
+def test_health_live_reports_worker_thread_state() -> None:
+    with patch(
+        "src.main.worker_thread",
+        MagicMock(is_alive=MagicMock(return_value=True)),
+    ), patch(
+        "src.main.get_consumer_state",
+        return_value={"last_success": "2025-01-01T00:00:00Z", "last_error": None},
+    ):
+        out = health_live()
+
+    assert out["status"] == "healthy"
+    assert out["worker_thread_alive"] is True
+
+
+def test_health_alias_matches_ready() -> None:
+    with patch("src.clients.rabbit_client.get_settings", return_value=_fake_settings()), patch(
+        "src.main.get_settings", return_value=MagicMock(minio_endpoint="minio:9000")
+    ), patch(
+        "src.main._check_minio", return_value="ok"
+    ), patch(
+        "src.main._check_orca", return_value="ok"
+    ), patch(
+        "src.main.worker_thread",
+        MagicMock(is_alive=MagicMock(return_value=True)),
+    ), patch(
+        "src.main.get_consumer_state",
+        return_value={"last_success": None, "last_error": None},
+    ), patch("src.clients.rabbit_client.pika.BlockingConnection") as mock_conn:
+        mock_conn.return_value.channel.return_value = MagicMock()
+        response = health()
+
+    assert response["status"] == "healthy"

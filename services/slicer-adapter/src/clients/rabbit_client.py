@@ -1,5 +1,6 @@
 import logging
 import time
+import threading
 from typing import Callable
 
 import pika
@@ -10,10 +11,28 @@ from src.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 JOBS_QUEUE = "slicing.jobs"
+_consumer_state_lock = threading.Lock()
+_consumer_state: dict[str, str | None] = {"last_success": None, "last_error": None}
 
 
 class RequeueMessageError(Exception):
     """Raised when the job must be redelivered (e.g. could not publish to the results queue)."""
+
+
+def record_consumer_success() -> None:
+    with _consumer_state_lock:
+        _consumer_state["last_success"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        _consumer_state["last_error"] = None
+
+
+def record_consumer_error(error: str) -> None:
+    with _consumer_state_lock:
+        _consumer_state["last_error"] = error[:500]
+
+
+def get_consumer_state() -> dict[str, str | None]:
+    with _consumer_state_lock:
+        return dict(_consumer_state)
 
 
 def handle_consumer_message(
@@ -24,17 +43,20 @@ def handle_consumer_message(
 ) -> None:
     try:
         callback(body.decode("utf-8"))
+        record_consumer_success()
     except RequeueMessageError:
         logger.warning(
             "Requeueing message: downstream publish unavailable or exhausted retries",
             exc_info=True,
         )
+        record_consumer_error("downstream publish unavailable")
         ch.basic_reject(delivery_tag=method.delivery_tag, requeue=True)
         return
     except Exception:
         logger.exception(
             "Fatal error while handling message; rejecting without requeue"
         )
+        record_consumer_error("fatal consumer error")
         ch.basic_reject(delivery_tag=method.delivery_tag, requeue=False)
         return
     ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -147,6 +169,7 @@ def start_consuming(queue_name: str, callback: Callable[[str], None]) -> None:
                 "RabbitMQ consumer crashed for queue %s, retrying in 5s",
                 queue_name,
             )
+            record_consumer_error(f"consumer crashed for queue {queue_name}")
             time.sleep(5)
         finally:
             if connection is not None:

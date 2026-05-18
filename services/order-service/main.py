@@ -1,5 +1,6 @@
 import json
 import logging
+import socket
 from contextlib import asynccontextmanager
 
 import httpx
@@ -128,6 +129,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 router = APIRouter(prefix="/api/orders", tags=["Orders"])
 telemetry_router = APIRouter(prefix="/api/telemetry", tags=["Telemetry"])
+health_router = APIRouter(tags=["Health"])
 order_db = OrderManager()
 
 
@@ -196,6 +198,63 @@ class TelemetryEvent(BaseModel):
 class TelemetryBatchRequest(BaseModel):
     source: str
     events: List[TelemetryEvent]
+
+
+def _db_healthcheck() -> dict[str, object]:
+    settings = get_settings()
+    status: dict[str, object] = {"postgres": "ok", "schema": "ok"}
+
+    try:
+        conn = order_db.db._connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                if not order_db.db._core_tables_exist(cur):
+                    raise RuntimeError("core tables are missing")
+        finally:
+            conn.close()
+    except Exception as exc:
+        status["postgres"] = str(exc)
+        raise
+
+    try:
+        with socket.create_connection(
+            (settings.rabbitmq_host, settings.rabbitmq_port), timeout=2.0
+        ):
+            pass
+    except Exception as exc:
+        status["rabbitmq"] = str(exc)
+        raise
+
+    try:
+        minio = OrderMinioClient(settings)
+        minio.check_bucket_access()
+    except Exception as exc:
+        status["minio"] = str(exc)
+        raise
+
+    return status
+
+
+@health_router.get("/health/live")
+async def health_live():
+    return {"status": "healthy"}
+
+
+@health_router.get("/health/ready")
+async def health_ready():
+    try:
+        return {"status": "healthy", **_db_healthcheck()}
+    except Exception as exc:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "error": str(exc)[:500]},
+        )
+
+
+@health_router.get("/health")
+async def health():
+    return await health_ready()
 
 
 @router.post("/files", response_model=UploadedFileResponse, status_code=201)
@@ -386,3 +445,4 @@ async def receive_telemetry_events(payload: TelemetryBatchRequest):
 
 app.include_router(router)
 app.include_router(telemetry_router)
+app.include_router(health_router)

@@ -54,3 +54,7 @@ class MinioClient:
 
     def upload_file(self, local_path: str, s3_key: str) -> None:
         self._client.fput_object(self._bucket, s3_key, local_path)
+
+    def check_bucket_access(self) -> None:
+        if not self._client.bucket_exists(self._bucket):
+            raise RuntimeError(f"Bucket {self._bucket} is not available")
