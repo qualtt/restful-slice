@@ -47,6 +47,8 @@ services:
 
   node-exporter:
     image: prom/node-exporter:latest
+    # Имя хоста ноды Swarm → в node_uname_info/nodename не id контейнера, а одна строка на машину
+    hostname: "{{.Node.Hostname}}"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
