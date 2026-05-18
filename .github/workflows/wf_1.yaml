@@ -545,15 +545,32 @@ jobs:
           # 3. Деплоим уже собранный манифест со вшитыми паролями
           stack_deploy_with_retry 3 docker stack deploy --with-registry-auth --prune -c stack-resolved.yml restful-slice
 
-          # 3.1. На Swarm одного stack deploy недостаточно: команда возвращается,
-          # пока rollout ещё идет в фоне. Принудительно дожидаемся обновления
-          # API-сервисов, иначе workflow может завершиться success на старом рантайме.
-          docker service update --detach=false --force --with-registry-auth restful-slice_order_service
-          docker service update --detach=false --force --with-registry-auth restful-slice_inventory_service
+          # 3.1. На Swarm одного stack deploy недостаточно: tasks могут подниматься
+          # дольше, чем ждёт клиент. Делаем bounded wait по docs-assets и при
+          # таймауте печатаем состояние сервисов, чтобы не ловить "зелёный" deploy
+          # на старом рантайме без диагностики.
+          docker service update --force --with-registry-auth restful-slice_order_service
+          docker service update --force --with-registry-auth restful-slice_inventory_service
+
+          wait_for_docs_assets() {
+            local url="$1"
+            local service="$2"
+            local deadline=$((SECONDS + 900))
+
+            until curl -fsS "$url" >/dev/null; do
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "Timed out waiting for $service"
+                docker service ps --no-trunc "$service" || true
+                docker service logs --tail 50 "$service" || true
+                return 1
+              fi
+              sleep 10
+            done
+          }
 
           echo "===== VERIFY API DOCS ASSETS ====="
-          curl -fsS "http://127.0.0.1/api/orders/docs-assets/swagger-ui/docs-bootstrap.js" >/dev/null
-          curl -fsS "http://127.0.0.1/api/inventory/docs-assets/swagger-ui/docs-bootstrap.js" >/dev/null
+          wait_for_docs_assets "http://127.0.0.1/api/orders/docs-assets/swagger-ui/docs-bootstrap.js" restful-slice_order_service
+          wait_for_docs_assets "http://127.0.0.1/api/inventory/docs-assets/swagger-ui/docs-bootstrap.js" restful-slice_inventory_service
 
           # 4. Аналогично для мониторинга
           cd infra/monitoring
