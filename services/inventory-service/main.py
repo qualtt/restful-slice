@@ -1,7 +1,9 @@
 from functools import lru_cache
-from fastapi import FastAPI, APIRouter, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, UUID4
+from fastapi import FastAPI, APIRouter, HTTPException, Query, Request, Security
+from fastapi.openapi.docs import get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.security import APIKeyHeader
+from pydantic import BaseModel, UUID4, Field, ConfigDict
 from typing import Optional
 
 from core.stock import InventoryStock, InsufficientStockError
@@ -11,6 +13,8 @@ _API_KEY_TO_USER_ID = {
     "demo-api-key": "user-0001",
     "sample-api-key": "user-0002",
 }
+SWAGGER_UI_DEFAULT_API_KEY = "demo-api-key"
+api_key_scheme = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 @lru_cache
@@ -27,7 +31,7 @@ def get_request_user_id(request: Request) -> str:
 
 app = FastAPI(
     title="Inventory Service",
-    docs_url="/api/inventory/docs",
+    docs_url=None,
     openapi_url="/api/inventory/openapi.json",
 )
 
@@ -50,8 +54,12 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-router = APIRouter(tags=["Inventory"])
-internal_router = APIRouter(prefix="/api/internal/inventory", tags=["Internal"])
+router = APIRouter(tags=["Inventory"], dependencies=[Security(api_key_scheme)])
+internal_router = APIRouter(
+    prefix="/api/internal/inventory",
+    tags=["Internal"],
+    dependencies=[Security(api_key_scheme)],
+)
 health_router = APIRouter(tags=["Health"])
 
 stock_db = InventoryStock()
@@ -106,13 +114,94 @@ class PrintProfile(BaseModel):
 
 
 class ReserveRequest(BaseModel):
-    orderId: UUID4
-    profileId: int
-    weightGrams: float
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "orderId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "profileId": 3,
+                "weightGrams": 47.3,
+            }
+        }
+    )
+
+    orderId: UUID4 = Field(..., examples=["a1b2c3d4-e5f6-7890-abcd-ef1234567890"])
+    profileId: int = Field(..., examples=[3])
+    weightGrams: float = Field(..., examples=[47.3])
 
 
 class StatusUpdateRequest(BaseModel):
-    status: str
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"status": "consumed"}}
+    )
+
+    status: str = Field(..., examples=["consumed"])
+
+
+class ProfileListResponse(BaseModel):
+    data: list[PrintProfile]
+    meta: PaginationMeta
+
+
+class MaterialListResponse(BaseModel):
+    data: list[Material]
+    meta: PaginationMeta
+
+
+class ReserveResponse(BaseModel):
+    reservationId: UUID4
+    reservedWeightGrams: float
+    price: Money
+
+
+def _swagger_oauth2_redirect_path(request: Request) -> str:
+    if app.swagger_ui_oauth2_redirect_url:
+        return app.swagger_ui_oauth2_redirect_url
+    base_path = request.scope.get("root_path", "").rstrip("/")
+    return f"{base_path}/docs/oauth2-redirect"
+
+
+def _swagger_openapi_url(request: Request) -> str:
+    openapi_url = app.openapi_url or "/openapi.json"
+    root_path = request.scope.get("root_path", "").rstrip("/")
+    if openapi_url.startswith(("http://", "https://")):
+        return openapi_url
+    return f"{root_path}{openapi_url}"
+
+
+def _inject_swagger_defaults(html: str) -> str:
+    html = html.replace("const ui = SwaggerUIBundle({", "window.ui = SwaggerUIBundle({")
+    script = f"""
+    <script>
+    window.addEventListener('load', () => {{
+      if (!window.ui) return;
+      window.ui.preauthorizeApiKey('APIKeyHeader', '{SWAGGER_UI_DEFAULT_API_KEY}');
+    }});
+    </script>
+    """
+    return html.replace("</body>", f"{script}</body>")
+
+
+@app.get("/api/inventory/docs", include_in_schema=False)
+async def custom_inventory_docs(request: Request) -> HTMLResponse:
+    swagger_ui = get_swagger_ui_html(
+        openapi_url=_swagger_openapi_url(request),
+        title=f"{app.title} - Swagger UI",
+        oauth2_redirect_url=_swagger_oauth2_redirect_path(request),
+        swagger_ui_parameters={
+            "persistAuthorization": True,
+            "displayRequestDuration": True,
+            "tryItOutEnabled": True,
+            "defaultModelsExpandDepth": 1,
+            "docExpansion": "list",
+        },
+    )
+    html = _inject_swagger_defaults(swagger_ui.body.decode("utf-8"))
+    return HTMLResponse(html)
+
+
+@app.get(app.swagger_ui_oauth2_redirect_url, include_in_schema=False)
+async def swagger_ui_redirect() -> HTMLResponse:
+    return get_swagger_ui_oauth2_redirect_html()
 
 
 def _check_schema_and_round_trip() -> dict[str, object]:
@@ -237,12 +326,12 @@ PROFILES_DB = [
 ]
 
 
-@router.get("/api/inventory/profiles")
+@router.get("/api/inventory/profiles", response_model=ProfileListResponse)
 async def list_profiles(
-    page: int = Query(1, ge=1),
-    pageSize: int = Query(20, ge=1, le=100),
-    materialType: Optional[str] = None,
-    isEnabled: bool = True,
+    page: int = Query(1, ge=1, examples=[1]),
+    pageSize: int = Query(20, ge=1, le=100, examples=[20]),
+    materialType: Optional[str] = Query(None, examples=["PETG"]),
+    isEnabled: bool = Query(True, examples=[True]),
 ):
     profiles = [p for p in PROFILES_DB if p["isEnabled"] == isEnabled]
     if materialType:
@@ -264,7 +353,7 @@ async def list_profiles(
     }
 
 
-@router.get("/api/inventory/profiles/{profileId}")
+@router.get("/api/inventory/profiles/{profileId}", response_model=PrintProfile)
 async def get_profile(profileId: int):
     for p in PROFILES_DB:
         if p["profileId"] == profileId:
@@ -278,12 +367,12 @@ async def get_profile(profileId: int):
     )
 
 
-@router.get("/api/inventory/materials")
+@router.get("/api/inventory/materials", response_model=MaterialListResponse)
 async def list_materials(
-    page: int = Query(1, ge=1),
-    pageSize: int = Query(20, ge=1, le=100),
-    type: Optional[str] = None,
-    isActive: bool = True,
+    page: int = Query(1, ge=1, examples=[1]),
+    pageSize: int = Query(20, ge=1, le=100, examples=[20]),
+    type: Optional[str] = Query(None, examples=["PETG"]),
+    isActive: bool = Query(True, examples=[True]),
 ):
     materials = [m for m in MATERIALS_DB if m["isActive"] == isActive]
     if type:
@@ -302,7 +391,7 @@ async def list_materials(
     }
 
 
-@router.get("/api/inventory/materials/{materialId}")
+@router.get("/api/inventory/materials/{materialId}", response_model=Material)
 async def get_material(materialId: int):
     for m in MATERIALS_DB:
         if m["materialId"] == materialId:
@@ -314,7 +403,7 @@ async def get_material(materialId: int):
     )
 
 
-@internal_router.post("/reserve")
+@internal_router.post("/reserve", response_model=ReserveResponse)
 async def reserve_material(payload: ReserveRequest, request: Request):
     request.state.user_id = get_request_user_id(request)
     profile = next(

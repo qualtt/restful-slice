@@ -1,3 +1,4 @@
+
 openapi: 3.1.0
 
 info:
@@ -22,10 +23,8 @@ info:
     2. `POST /api/orders` — создать заказ, передав `fileId` + `profileId`
 
 servers:
-  - url: https://restfulslice.ru
+  - url: https://streetkots.ru
     description: Production
-  - url: https://dev.restfulslice.ru
-    description: Dev
 
 security:
   - ApiKeyAuth: []
@@ -114,7 +113,7 @@ components:
           example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
         filename:
           type: string
-          example: bracket_v3.stl
+          example: cube.stl
         sizeBytes:
           type: integer
           format: int64
@@ -387,7 +386,12 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: STL-файл (макс. 100 МБ)
+                  description: >
+                    STL-файл (макс. 100 МБ). Contract fixture: `tests/postman/fixtures/cube.stl`;
+                    negative fixture: `tests/postman/fixtures/not-a-model.txt`.
+            x-postman-fixtures:
+              valid: tests/postman/fixtures/cube.stl
+              invalid: tests/postman/fixtures/not-a-model.txt
             encoding:
               file:
                 contentType: model/stl, application/octet-stream
@@ -400,7 +404,7 @@ paths:
                 $ref: '#/components/schemas/UploadedFile'
               example:
                 fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
-                filename: bracket_v3.stl
+                filename: cube.stl
                 sizeBytes: 5242880
                 uploadedAt: "2025-06-15T09:58:00Z"
         '400':
