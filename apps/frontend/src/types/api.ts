@@ -26,6 +26,13 @@ export interface UploadedFile {
   uploadedAt: string;
 }
 
+export interface ApiIdentity {
+  apiKeyLabel: string;
+  owner: string;
+  role: string;
+  fingerprint: string;
+}
+
 export interface Order {
   orderId: string;
   status: OrderStatus;

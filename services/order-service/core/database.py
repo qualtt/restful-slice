@@ -38,11 +38,12 @@ class PostgresDB:
             """
             SELECT
                 to_regclass('public.files') IS NOT NULL AS files_exists,
-                to_regclass('public.orders') IS NOT NULL AS orders_exists
+                to_regclass('public.orders') IS NOT NULL AS orders_exists,
+                to_regclass('public.telemetry_events') IS NOT NULL AS telemetry_exists
             """
         )
         row = cur.fetchone()
-        return bool(row and row["files_exists"] and row["orders_exists"])
+        return bool(row and row["files_exists"] and row["orders_exists"] and row["telemetry_exists"])
 
     @classmethod
     def _apply_migrations(cls) -> None:
@@ -58,6 +59,7 @@ class PostgresDB:
             "status": row["status"],
             "fileId": str(row["file_id"]),
             "profileId": row["profile_id"],
+            "apiKeyIdentity": row.get("api_key_identity"),
             "slicingResult": row.get("slicing_result"),
             "errorMessage": row.get("error_message"),
             "createdAt": row["created_at"].isoformat(),
@@ -84,13 +86,14 @@ class PostgresDB:
                     cur.execute(
                         """
                         INSERT INTO telemetry_events (
-                            id, session_id, event_name, route, consent_version, context, data, client_ts
+                            id, api_key_identity, session_id, event_name, route, consent_version, context, data, client_ts
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO NOTHING
                         """,
                         (
                             record_id,
+                            data.get("api_key_identity"),
                             data["session_id"],
                             data["event_name"],
                             data["route"],
@@ -128,13 +131,14 @@ class PostgresDB:
                         """
                         INSERT INTO orders (
                             order_id, status, file_id, profile_id,
-                            slicing_result, error_message, created_at, updated_at
+                            api_key_identity, slicing_result, error_message, created_at, updated_at
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (order_id) DO UPDATE
                         SET status = EXCLUDED.status,
                             file_id = EXCLUDED.file_id,
                             profile_id = EXCLUDED.profile_id,
+                            api_key_identity = EXCLUDED.api_key_identity,
                             slicing_result = EXCLUDED.slicing_result,
                             error_message = EXCLUDED.error_message,
                             updated_at = EXCLUDED.updated_at
@@ -144,6 +148,7 @@ class PostgresDB:
                             data["status"],
                             data["fileId"],
                             data["profileId"],
+                            data.get("apiKeyIdentity"),
                             Json(data["slicingResult"])
                             if data.get("slicingResult") is not None
                             else None,
@@ -169,7 +174,7 @@ class PostgresDB:
                 if table == "orders":
                     cur.execute(
                         """
-                        SELECT order_id, status, file_id, profile_id, slicing_result, error_message, created_at, updated_at
+                        SELECT order_id, status, file_id, profile_id, api_key_identity, slicing_result, error_message, created_at, updated_at
                         FROM orders
                         WHERE order_id = %s
                         """,
@@ -185,7 +190,7 @@ class PostgresDB:
                 if table == "orders":
                     cur.execute(
                         """
-                        SELECT order_id, status, file_id, profile_id, slicing_result, error_message, created_at, updated_at
+                        SELECT order_id, status, file_id, profile_id, api_key_identity, slicing_result, error_message, created_at, updated_at
                         FROM orders
                         ORDER BY created_at DESC
                         """
@@ -220,6 +225,7 @@ class PostgresDB:
         mapping = {
             "status": "status",
             "profileId": "profile_id",
+            "apiKeyIdentity": "api_key_identity",
             "errorMessage": "error_message",
             "updatedAt": "updated_at",
         }

@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9c49eb0b-6b25-4d2b-8ef7-8c2d4d7191f6",
     "name": "restful-slice API E2E",
-    "description": "Smoke and happy-path API checks for the local docker-compose stack.",
+    "description": "Smoke and happy-path API checks for the local docker-compose stack using API-key identity.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -150,7 +150,7 @@
                   "pm.environment.set('pollAttempt', '0');",
                   "pm.environment.unset('terminalStatus');",
                   "pm.environment.unset('errorMessage');",
-                  "pm.test('Order enters slicing pipeline', function () {",
+                  "pm.test('Order enters slicing pipeline for the active API-key identity', function () {",
                   "  pm.expect(body.status).to.eql('slicing');",
                   "});"
                 ]
@@ -206,7 +206,7 @@
                   "pm.environment.set('lastOrderStatus', status);",
                   "if (status === 'priced') {",
                   "  pm.environment.set('terminalStatus', status);",
-                  "  pm.test('Order reaches priced terminal state', function () {",
+                  "  pm.test('Order reaches priced terminal state for the active API-key identity', function () {",
                   "    pm.expect(body.slicingResult).to.be.an('object');",
                   "    pm.expect(body.slicingResult.weightGrams).to.be.above(0);",
                   "    pm.expect(body.slicingResult.printTimeSeconds).to.be.above(0);",

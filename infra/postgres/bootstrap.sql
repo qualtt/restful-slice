@@ -55,6 +55,8 @@ ALTER TABLE IF EXISTS files           OWNER TO :"ord_user";
 ALTER TABLE IF EXISTS orders          OWNER TO :"ord_user";
 ALTER TABLE IF EXISTS telemetry_events OWNER TO :"ord_user";
 ALTER TABLE IF EXISTS files ADD COLUMN IF NOT EXISTS object_key TEXT;
+ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS api_key_identity TEXT;
+ALTER TABLE IF EXISTS telemetry_events ADD COLUMN IF NOT EXISTS api_key_identity TEXT;
 
 -- ---------------- Гранты на public для inventory_db -----------------
 \connect :"inv_db"

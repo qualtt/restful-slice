@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "4ab4d5d8-1a15-4f70-9d38-c7ebf48e0e88",
     "name": "restful-slice OpenAPI Contract",
-    "description": "Contract-oriented API coverage for the public OpenAPI surface. The collection is grouped by resource area and keeps the happy-path end-to-end flow in a dedicated folder.",
+    "description": "Contract-oriented API coverage for the public OpenAPI surface with API-key identity headers. The collection is grouped by resource area and keeps the happy-path end-to-end flow in a dedicated folder.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {

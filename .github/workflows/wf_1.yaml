@@ -184,6 +184,10 @@ jobs:
             sleep 2
           done
 
+      - name: Load slicer fixtures into MinIO
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: bash infra/scripts/load-fixtures.sh
+
       - name: Wait for slicer services on main
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
@@ -196,10 +200,6 @@ jobs:
           until docker compose exec -T slicer_adapter python -c "import urllib.request; r = urllib.request.urlopen('http://localhost:8080/health'); raise SystemExit(0 if r.status == 200 else 1)" >/dev/null 2>&1; do
             sleep 2
           done
-
-      - name: Load slicer fixtures into MinIO
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: bash infra/scripts/load-fixtures.sh
 
       - name: Run lightweight Newman collections
         run: |
@@ -436,6 +436,36 @@ jobs:
       #     cd infra/monitoring && docker stack deploy -c docker-stack-monitor.yml monitoring
       - name: Deploy to Docker Swarm
         run: |
+          stack_deploy_with_retry() {
+            local max_attempts="$1"
+            shift
+            local attempt=1
+            local output
+            local status
+
+            while true; do
+              echo "===== STACK DEPLOY ATTEMPT $attempt/$max_attempts ====="
+              set +e
+              output="$("$@" 2>&1)"
+              status=$?
+              set -e
+              printf '%s\n' "$output"
+
+              if [ "$status" -eq 0 ]; then
+                return 0
+              fi
+
+              if printf '%s\n' "$output" | grep -q "update out of sequence" && [ "$attempt" -lt "$max_attempts" ]; then
+                echo "Transient Swarm update race detected; retrying in 10 seconds..."
+                attempt=$((attempt + 1))
+                sleep 10
+                continue
+              fi
+
+              return "$status"
+            done
+          }
+
           # 0. ДЕБАГ: Выводим все КЛЮЧИ из .env файла (скрывая пароли),
           # чтобы ты 100% увидел, есть ли там ORDER_DB_USER!
           echo "=== SODERZHIMOE .ENV (SECRETS HIDDEN) ==="
@@ -499,12 +529,12 @@ jobs:
           # cat stack-resolved.yml
 
           # 3. Деплоим уже собранный манифест со вшитыми паролями
-          docker stack deploy --with-registry-auth --prune -c stack-resolved.yml restful-slice
+          stack_deploy_with_retry 3 docker stack deploy --with-registry-auth --prune -c stack-resolved.yml restful-slice
 
           # 4. Аналогично для мониторинга
           cd infra/monitoring
           envsubst < docker-stack-monitor.yml > stack-resolved-monitor.yml
-          docker stack deploy -c stack-resolved-monitor.yml monitoring
+          stack_deploy_with_retry 3 docker stack deploy -c stack-resolved-monitor.yml monitoring
 
       - name: Load MinIO fixtures into Swarm stack
         run: |

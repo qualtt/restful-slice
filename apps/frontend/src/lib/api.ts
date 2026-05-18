@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosHeaders } from "axios";
 import type { Order, Paginated, PrintProfile, UploadedFile } from "../types/api";
 
 export interface TelemetryEvent {
@@ -20,6 +20,16 @@ export interface TelemetryEvent {
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? "",
   timeout: 12_000
+});
+
+api.interceptors.request.use((config) => {
+  const apiKey = import.meta.env.VITE_API_KEY;
+  if (typeof apiKey === "string" && apiKey.trim() !== "") {
+    const headers = AxiosHeaders.from(config.headers);
+    headers.set("X-API-Key", apiKey);
+    config.headers = headers;
+  }
+  return config;
 });
 
 export async function getOrders(): Promise<Paginated<Order>> {

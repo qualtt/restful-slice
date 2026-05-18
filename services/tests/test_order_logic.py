@@ -1,25 +1,57 @@
 import json
+import importlib.util
+from pathlib import Path
 import sys
 import os
+import types
 import pytest
 import uuid
 
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../order-service"))
-)
+ORDER_SERVICE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../order-service"))
+ORDER_MAIN_PATH = Path(ORDER_SERVICE_DIR) / "main.py"
 
-if "core" in sys.modules:
-    del sys.modules["core"]
-if "core.calculator" in sys.modules:
-    del sys.modules["core.calculator"]
-if "core.stock" in sys.modules:
-    del sys.modules["core.stock"]
+
+def _reset_order_modules() -> None:
+    for module_name in (
+        "core",
+        "core.database",
+        "core.calculator",
+        "core.stock",
+        "core.order_manager",
+        "main",
+    ):
+        sys.modules.pop(module_name, None)
+
+
+def _install_order_package() -> None:
+    package = types.ModuleType("core")
+    package.__path__ = [os.path.join(ORDER_SERVICE_DIR, "core")]
+    sys.modules["core"] = package
+
+
+def _load_order_main():
+    _reset_order_modules()
+    _install_order_package()
+    spec = importlib.util.spec_from_file_location("order_service_main", ORDER_MAIN_PATH)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    sys.modules["order_service_main"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+sys.path.insert(0, ORDER_SERVICE_DIR)
+
+_reset_order_modules()
+_install_order_package()
 
 from core.order_manager import OrderManager, OrderStatus, InvalidStatusTransitionError
 
 
 class TestOrderManager:
     def setup_method(self):
+        _reset_order_modules()
+        _install_order_package()
         from core.database import db_stub
 
         db_stub.reset_stub()
@@ -69,11 +101,11 @@ class TestOrderManager:
             self.manager.update_status(order_id, "unknown_status_123")
 
     def test_slicing_result_reserve_failure_marks_order_failed(self, monkeypatch):
-        import main as order_main
-
         order = self.manager.create_order(self.file_id, self.profile_id)
         order_id = order["orderId"]
         self.manager.update_status(order_id, OrderStatus.SLICING.value)
+
+        order_main = _load_order_main()
 
         class FailedReserveResponse:
             status_code = 500
