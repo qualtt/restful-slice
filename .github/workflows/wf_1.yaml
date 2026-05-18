@@ -545,6 +545,16 @@ jobs:
           # 3. Деплоим уже собранный манифест со вшитыми паролями
           stack_deploy_with_retry 3 docker stack deploy --with-registry-auth --prune -c stack-resolved.yml restful-slice
 
+          # 3.1. На Swarm одного stack deploy недостаточно: команда возвращается,
+          # пока rollout ещё идет в фоне. Принудительно дожидаемся обновления
+          # API-сервисов, иначе workflow может завершиться success на старом рантайме.
+          docker service update --detach=false --force --with-registry-auth restful-slice_order_service
+          docker service update --detach=false --force --with-registry-auth restful-slice_inventory_service
+
+          echo "===== VERIFY API DOCS ASSETS ====="
+          curl -fsS "http://127.0.0.1/api/orders/docs-assets/swagger-ui/docs-bootstrap.js" >/dev/null
+          curl -fsS "http://127.0.0.1/api/inventory/docs-assets/swagger-ui/docs-bootstrap.js" >/dev/null
+
           # 4. Аналогично для мониторинга
           cd infra/monitoring
           envsubst < docker-stack-monitor.yml > stack-resolved-monitor.yml
