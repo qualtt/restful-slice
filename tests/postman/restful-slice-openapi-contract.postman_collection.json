@@ -1067,7 +1067,8 @@
                   "  pm.response.to.have.status(201);",
                   "});",
                   "const body = pm.response.json();",
-                  "pm.environment.set('happyFileId', body.fileId);"
+                  "pm.environment.set('happyFileId', body.fileId);",
+                  "pm.environment.set('happyUploadedFilename', body.filename);"
                 ]
               }
             }
@@ -1229,6 +1230,9 @@
                   "  pm.expect(body.slicingResult.printTimeSeconds).to.be.above(0);",
                   "  pm.expect(body.slicingResult.price.amount).to.match(/^\\d+(\\.\\d{2})$/);",
                   "  pm.expect(body.slicingResult.price.currency).to.eql('RUB');",
+                  "  if (body.slicingResult.gcodeObjectKey) {",
+                  "    pm.environment.set('happyGcodeObjectKey', body.slicingResult.gcodeObjectKey);",
+                  "  }",
                   "});"
                 ]
               }
@@ -1295,6 +1299,47 @@
                   "key": "status",
                   "value": "priced"
                 }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Download happy sliced G-code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Happy path G-code download returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Happy path G-code response is downloadable', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/octet-stream');",
+                  "  pm.expect(pm.response.headers.get('Content-Disposition')).to.include('.gcode');",
+                  "});",
+                  "pm.execution.setNextRequest(null);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{happyOrderId}}/download",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{happyOrderId}}",
+                "download"
               ]
             }
           },

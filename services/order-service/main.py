@@ -4,13 +4,15 @@ import socket
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Query, Request, Security
 from fastapi.openapi.docs import get_swagger_ui_oauth2_redirect_html
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
+from minio.error import S3Error
 from pydantic import BaseModel, UUID4, Field, ConfigDict
 from typing import Dict, Any, Optional, List
 
@@ -50,6 +52,33 @@ def get_request_user_id(request: Request) -> str:
 
 def get_order_api_key(order_id: str) -> str | None:
     return _ORDER_TO_API_KEY.get(order_id)
+
+
+def get_order_owner_identity(order: dict[str, Any]) -> str | None:
+    return order.get("apiKeyIdentity") or _ORDER_TO_USER_ID.get(order["orderId"])
+
+
+def request_can_access_order(order: dict[str, Any], request: Request) -> bool:
+    owner_identity = get_order_owner_identity(order)
+    if not owner_identity:
+        return True
+    return owner_identity == get_request_user_id(request)
+
+
+def build_gcode_filename(order: dict[str, Any], file_record: dict[str, Any]) -> str:
+    source_name = (file_record.get("filename") or "").strip()
+    stem = Path(source_name).stem.strip() or f"order-{order['orderId']}"
+    return f"{stem}.gcode"
+
+
+def iter_minio_response_chunks(response):
+    try:
+        for chunk in response.stream(64 * 1024):
+            if chunk:
+                yield chunk
+    finally:
+        response.close()
+        response.release_conn()
 
 
 def fail_order(order_id: str, error_message: str) -> None:
@@ -121,6 +150,7 @@ def handle_slicing_result(event_json: str) -> None:
                 "weightGrams": weight,
                 "printTimeSeconds": print_time,
                 "price": price,
+                "gcodeObjectKey": payload.get("gcode_object_key"),
             },
         )
 
@@ -436,7 +466,11 @@ async def create_order(payload: CreateOrderRequest, request: Request):
     user_id = get_request_user_id(request)
     api_key = get_request_api_key(request)
     try:
-        order = order_db.create_order(str(payload.fileId), payload.profileId)
+        order = order_db.create_order(
+            str(payload.fileId),
+            payload.profileId,
+            api_key_identity=user_id,
+        )
     except KeyError:
         return JSONResponse(
             status_code=404,
@@ -493,6 +527,73 @@ async def get_order(orderId: UUID4):
             status_code=404,
             content={"code": "NOT_FOUND", "message": "Resource not found"},
         )
+
+
+@router.get(
+    "/{orderId}/download",
+    summary="Download sliced G-code",
+    responses={
+        200: {
+            "content": {"application/octet-stream": {}},
+            "description": "Sliced G-code file",
+        }
+    },
+)
+async def download_gcode(orderId: UUID4, request: Request):
+    try:
+        order = order_db.get_order(str(orderId))
+    except KeyError:
+        return JSONResponse(
+            status_code=404,
+            content={"code": "NOT_FOUND", "message": "Resource not found"},
+        )
+
+    if not request_can_access_order(order, request):
+        return JSONResponse(
+            status_code=403,
+            content={
+                "code": "FORBIDDEN",
+                "message": "You do not have access to this order",
+            },
+        )
+
+    slicing_result = order.get("slicingResult") or {}
+    gcode_object_key = slicing_result.get("gcodeObjectKey")
+    if not gcode_object_key:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "code": "GCODE_NOT_READY",
+                "message": "Sliced model is not available for download yet",
+            },
+        )
+
+    try:
+        file_record = order_db.get_file(order["fileId"])
+        settings = get_settings()
+        minio = OrderMinioClient(settings)
+        minio.stat_object(gcode_object_key)
+        object_response = minio.get_object(gcode_object_key)
+    except S3Error as exc:
+        if exc.code == "NoSuchKey":
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "code": "GCODE_NOT_FOUND",
+                    "message": "Sliced model file not found",
+                },
+            )
+        raise
+
+    filename = build_gcode_filename(order, file_record)
+    content_disposition = (
+        f'attachment; filename="result.gcode"; filename*=UTF-8\'\'{quote(filename)}'
+    )
+    return StreamingResponse(
+        iter_minio_response_chunks(object_response),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": content_disposition},
+    )
 
 
 @router.delete("/{orderId}", response_model=OrderResponse)

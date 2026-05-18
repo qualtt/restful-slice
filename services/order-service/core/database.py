@@ -17,9 +17,33 @@ class PostgresDB:
         self.host = os.getenv("DB_HOST") or os.getenv("POSTGRES_HOST", "localhost")
         self.port = int(os.getenv("POSTGRES_PORT", "5434"))
         self.url = f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db_name}"
+        self._column_cache: dict[str, set[str]] = {}
+        self._order_identity_fallback: dict[str, str | None] = {}
 
     def _connect(self):
         return psycopg.connect(self.url, autocommit=True, row_factory=dict_row)
+
+    def _get_table_columns(self, table: str) -> set[str]:
+        cached = self._column_cache.get(table)
+        if cached is not None:
+            return cached
+
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = %s
+                    """,
+                    (table,),
+                )
+                columns = {row["column_name"] for row in cur.fetchall()}
+        self._column_cache[table] = columns
+        return columns
+
+    def _has_column(self, table: str, column: str) -> bool:
+        return column in self._get_table_columns(table)
 
     @staticmethod
     def _service_root() -> Path:
@@ -83,26 +107,47 @@ class PostgresDB:
         with self._connect() as conn:
             with conn.cursor() as cur:
                 if table == "telemetry_events":
-                    cur.execute(
-                        """
-                        INSERT INTO telemetry_events (
-                            id, api_key_identity, session_id, event_name, route, consent_version, context, data, client_ts
+                    if self._has_column("telemetry_events", "api_key_identity"):
+                        cur.execute(
+                            """
+                            INSERT INTO telemetry_events (
+                                id, api_key_identity, session_id, event_name, route, consent_version, context, data, client_ts
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (id) DO NOTHING
+                            """,
+                            (
+                                record_id,
+                                data.get("api_key_identity"),
+                                data["session_id"],
+                                data["event_name"],
+                                data["route"],
+                                data["consent_version"],
+                                Json(data["context"]),
+                                Json(data["data"]),
+                                data["client_ts"],
+                            ),
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (id) DO NOTHING
-                        """,
-                        (
-                            record_id,
-                            data.get("api_key_identity"),
-                            data["session_id"],
-                            data["event_name"],
-                            data["route"],
-                            data["consent_version"],
-                            Json(data["context"]),
-                            Json(data["data"]),
-                            data["client_ts"],
-                        ),
-                    )
+                    else:
+                        cur.execute(
+                            """
+                            INSERT INTO telemetry_events (
+                                id, session_id, event_name, route, consent_version, context, data, client_ts
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (id) DO NOTHING
+                            """,
+                            (
+                                record_id,
+                                data["session_id"],
+                                data["event_name"],
+                                data["route"],
+                                data["consent_version"],
+                                Json(data["context"]),
+                                Json(data["data"]),
+                                data["client_ts"],
+                            ),
+                        )
                     return
 
                 if table == "files":
@@ -127,36 +172,70 @@ class PostgresDB:
                     return
 
                 if table == "orders":
-                    cur.execute(
-                        """
-                        INSERT INTO orders (
-                            order_id, status, file_id, profile_id,
-                            api_key_identity, slicing_result, error_message, created_at, updated_at
+                    has_api_key_identity = self._has_column("orders", "api_key_identity")
+                    if has_api_key_identity:
+                        cur.execute(
+                            """
+                            INSERT INTO orders (
+                                order_id, status, file_id, profile_id,
+                                api_key_identity, slicing_result, error_message, created_at, updated_at
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (order_id) DO UPDATE
+                            SET status = EXCLUDED.status,
+                                file_id = EXCLUDED.file_id,
+                                profile_id = EXCLUDED.profile_id,
+                                api_key_identity = EXCLUDED.api_key_identity,
+                                slicing_result = EXCLUDED.slicing_result,
+                                error_message = EXCLUDED.error_message,
+                                updated_at = EXCLUDED.updated_at
+                            """,
+                            (
+                                record_id,
+                                data["status"],
+                                data["fileId"],
+                                data["profileId"],
+                                data.get("apiKeyIdentity"),
+                                Json(data["slicingResult"])
+                                if data.get("slicingResult") is not None
+                                else None,
+                                data.get("errorMessage"),
+                                data["createdAt"],
+                                data["updatedAt"],
+                            ),
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (order_id) DO UPDATE
-                        SET status = EXCLUDED.status,
-                            file_id = EXCLUDED.file_id,
-                            profile_id = EXCLUDED.profile_id,
-                            api_key_identity = EXCLUDED.api_key_identity,
-                            slicing_result = EXCLUDED.slicing_result,
-                            error_message = EXCLUDED.error_message,
-                            updated_at = EXCLUDED.updated_at
-                        """,
-                        (
-                            record_id,
-                            data["status"],
-                            data["fileId"],
-                            data["profileId"],
-                            data.get("apiKeyIdentity"),
-                            Json(data["slicingResult"])
-                            if data.get("slicingResult") is not None
-                            else None,
-                            data.get("errorMessage"),
-                            data["createdAt"],
-                            data["updatedAt"],
-                        ),
-                    )
+                    else:
+                        self._order_identity_fallback[record_id] = data.get(
+                            "apiKeyIdentity"
+                        )
+                        cur.execute(
+                            """
+                            INSERT INTO orders (
+                                order_id, status, file_id, profile_id,
+                                slicing_result, error_message, created_at, updated_at
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (order_id) DO UPDATE
+                            SET status = EXCLUDED.status,
+                                file_id = EXCLUDED.file_id,
+                                profile_id = EXCLUDED.profile_id,
+                                slicing_result = EXCLUDED.slicing_result,
+                                error_message = EXCLUDED.error_message,
+                                updated_at = EXCLUDED.updated_at
+                            """,
+                            (
+                                record_id,
+                                data["status"],
+                                data["fileId"],
+                                data["profileId"],
+                                Json(data["slicingResult"])
+                                if data.get("slicingResult") is not None
+                                else None,
+                                data.get("errorMessage"),
+                                data["createdAt"],
+                                data["updatedAt"],
+                            ),
+                        )
                     return
 
                 raise ValueError(f"Unsupported table: {table}")
@@ -172,15 +251,32 @@ class PostgresDB:
                     return self._map_file_row(cur.fetchone())
 
                 if table == "orders":
-                    cur.execute(
-                        """
-                        SELECT order_id, status, file_id, profile_id, api_key_identity, slicing_result, error_message, created_at, updated_at
-                        FROM orders
-                        WHERE order_id = %s
-                        """,
-                        (record_id,),
-                    )
-                    return self._map_order_row(cur.fetchone())
+                    has_api_key_identity = self._has_column("orders", "api_key_identity")
+                    if has_api_key_identity:
+                        cur.execute(
+                            """
+                            SELECT order_id, status, file_id, profile_id, api_key_identity, slicing_result, error_message, created_at, updated_at
+                            FROM orders
+                            WHERE order_id = %s
+                            """,
+                            (record_id,),
+                        )
+                    else:
+                        cur.execute(
+                            """
+                            SELECT order_id, status, file_id, profile_id, slicing_result, error_message, created_at, updated_at
+                            FROM orders
+                            WHERE order_id = %s
+                            """,
+                            (record_id,),
+                        )
+                    row = cur.fetchone()
+                    mapped = self._map_order_row(row)
+                    if mapped and not has_api_key_identity:
+                        mapped["apiKeyIdentity"] = self._order_identity_fallback.get(
+                            record_id
+                        )
+                    return mapped
 
                 raise ValueError(f"Unsupported table: {table}")
 
@@ -188,14 +284,31 @@ class PostgresDB:
         with self._connect() as conn:
             with conn.cursor() as cur:
                 if table == "orders":
-                    cur.execute(
-                        """
-                        SELECT order_id, status, file_id, profile_id, api_key_identity, slicing_result, error_message, created_at, updated_at
-                        FROM orders
-                        ORDER BY created_at DESC
-                        """
-                    )
-                    return [self._map_order_row(row) for row in cur.fetchall()]
+                    has_api_key_identity = self._has_column("orders", "api_key_identity")
+                    if has_api_key_identity:
+                        cur.execute(
+                            """
+                            SELECT order_id, status, file_id, profile_id, api_key_identity, slicing_result, error_message, created_at, updated_at
+                            FROM orders
+                            ORDER BY created_at DESC
+                            """
+                        )
+                    else:
+                        cur.execute(
+                            """
+                            SELECT order_id, status, file_id, profile_id, slicing_result, error_message, created_at, updated_at
+                            FROM orders
+                            ORDER BY created_at DESC
+                            """
+                        )
+                    rows = [self._map_order_row(row) for row in cur.fetchall()]
+                    if not has_api_key_identity:
+                        for row in rows:
+                            if row:
+                                row["apiKeyIdentity"] = self._order_identity_fallback.get(
+                                    row["orderId"]
+                                )
+                    return rows
 
                 if table == "files":
                     cur.execute(
@@ -225,10 +338,14 @@ class PostgresDB:
         mapping = {
             "status": "status",
             "profileId": "profile_id",
-            "apiKeyIdentity": "api_key_identity",
             "errorMessage": "error_message",
             "updatedAt": "updated_at",
         }
+
+        if self._has_column("orders", "api_key_identity"):
+            mapping["apiKeyIdentity"] = "api_key_identity"
+        elif "apiKeyIdentity" in updates:
+            self._order_identity_fallback[record_id] = updates["apiKeyIdentity"]
 
         for key, column in mapping.items():
             if key in updates:
@@ -265,6 +382,7 @@ class PostgresDB:
         with self._connect() as conn:
             with conn.cursor() as cur:
                 if table == "orders":
+                    self._order_identity_fallback.pop(record_id, None)
                     cur.execute("DELETE FROM orders WHERE order_id = %s", (record_id,))
                     return
                 if table == "files":
@@ -273,16 +391,11 @@ class PostgresDB:
                 raise ValueError(f"Unsupported table: {table}")
 
     def reset_stub(self):
-        schema_ready = False
-        with self._connect() as conn:
-            with conn.cursor() as cur:
-                schema_ready = self._core_tables_exist(cur)
-
-        if not schema_ready:
-            self._apply_migrations()
+        self._column_cache.clear()
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute("TRUNCATE TABLE orders, files RESTART IDENTITY CASCADE")
+        self._order_identity_fallback.clear()
 
 
 # Alias name kept to avoid touching all imports at once.
