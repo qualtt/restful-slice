@@ -11,7 +11,8 @@ services:
       # Swarm service discovery + relabel instance → node hostname (не IP таска)
       - /var/run/docker.sock:/var/run/docker.sock:ro
     configs:
-      - source: prom_config_v2
+      # Swarm: содержимое config нельзя обновить — при смене prometheus.yml увеличивайте версию.
+      - source: prom_config_v3
         target: /etc/prometheus/prometheus.yml
     networks:
       - monitoring_net
@@ -111,7 +112,7 @@ volumes:
   grafana_data:
 
 configs:
-  prom_config_v2:
+  prom_config_v3:
     file: ./prometheus.yml
   loki_config_v1:
     file: ./loki.yml
