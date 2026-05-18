@@ -20,8 +20,4 @@ window.addEventListener("load", () => {
     oauth2RedirectUrl: root.dataset.oauth2RedirectUrl,
     presets: swagger.presets ? [swagger.presets.apis] : undefined,
   });
-
-  if (root.dataset.defaultApiKey) {
-    ui.preauthorizeApiKey("APIKeyHeader", root.dataset.defaultApiKey);
-  }
 });
