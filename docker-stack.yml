@@ -87,7 +87,7 @@ services:
 
   order_service:
     # Замени "твое-имя-в-гитхабе" на реальное
-    image: ghcr.io/qualtt/restful-slice/order-service:latest
+    image: ghcr.io/qualtt/restful-slice/order-service:${IMAGE_TAG}
     environment:
       - PORT=${ORDER_PORT}
       - DB_HOST=postgres-ha_pg_haproxy
@@ -177,7 +177,7 @@ services:
       start_period: 180s
 
   inventory_service:
-    image: ghcr.io/qualtt/restful-slice/inventory-service:latest
+    image: ghcr.io/qualtt/restful-slice/inventory-service:${IMAGE_TAG}
     environment:
       - PORT=${INVENTORY_PORT}
       - DB_HOST=postgres-ha_pg_haproxy
@@ -254,7 +254,7 @@ services:
       start_period: 120s
 
   slicer_api:
-    image: ghcr.io/qualtt/restful-slice/slicer-api:latest
+    image: ghcr.io/qualtt/restful-slice/slicer-api:${IMAGE_TAG}
     networks:
       - slicer_internal_net
     volumes:
@@ -278,7 +278,7 @@ services:
       start_period: 120s
 
   slicer_adapter:
-    image: ghcr.io/qualtt/restful-slice/slicer-adapter:latest
+    image: ghcr.io/qualtt/restful-slice/slicer-adapter:${IMAGE_TAG}
     environment:
       - SLICER_API_URL=http://slicer_api:3000
       - RABBITMQ_HOST=rabbitmq
@@ -307,7 +307,7 @@ services:
 
   # Статический фронт: рядом с gateway на edge — отдаёт SPA на `/`, API остаются на том же порту 80.
   frontend:
-    image: ghcr.io/qualtt/restful-slice/frontend:latest
+    image: ghcr.io/qualtt/restful-slice/frontend:${IMAGE_TAG}
     networks:
       - public_net
     deploy:
