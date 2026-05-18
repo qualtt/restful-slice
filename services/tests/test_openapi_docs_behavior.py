@@ -158,7 +158,7 @@ def test_order_docs_preauthorize_default_api_key():
     assert response.status_code == 200
     body = response.text
     assert "/api/orders/docs-assets/swagger-ui/swagger-ui.css" in body
-    assert "/api/orders/docs-assets/swagger-ui/swagger-ui-bundle.js" in body
+    assert "/api/orders/docs-assets/swagger-ui/swagger-ui.js" in body
     assert "/api/orders/docs-assets/swagger-ui/docs-bootstrap.js" in body
     assert "cdn.jsdelivr.net" not in body
     assert 'data-default-api-key="demo-api-key"' in body
@@ -193,7 +193,7 @@ def test_inventory_docs_preauthorize_default_api_key():
     assert response.status_code == 200
     body = response.text
     assert "/api/inventory/docs-assets/swagger-ui/swagger-ui.css" in body
-    assert "/api/inventory/docs-assets/swagger-ui/swagger-ui-bundle.js" in body
+    assert "/api/inventory/docs-assets/swagger-ui/swagger-ui.js" in body
     assert "/api/inventory/docs-assets/swagger-ui/docs-bootstrap.js" in body
     assert "cdn.jsdelivr.net" not in body
     assert 'data-default-api-key="demo-api-key"' in body

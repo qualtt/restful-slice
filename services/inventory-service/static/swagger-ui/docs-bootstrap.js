@@ -1,10 +1,11 @@
 window.addEventListener("load", () => {
   const root = document.getElementById("swagger-ui");
-  if (!root || !window.SwaggerUIBundle) {
+  const swagger = window.SwaggerUIBundle || window.SwaggerUICore;
+  if (!root || !swagger) {
     return;
   }
 
-  const ui = window.SwaggerUIBundle({
+  const ui = swagger({
     url: root.dataset.openapiUrl,
     dom_id: "#swagger-ui",
     layout: "BaseLayout",
@@ -17,7 +18,7 @@ window.addEventListener("load", () => {
     defaultModelsExpandDepth: 1,
     docExpansion: "list",
     oauth2RedirectUrl: root.dataset.oauth2RedirectUrl,
-    presets: [window.SwaggerUIBundle.presets.apis],
+    presets: swagger.presets ? [swagger.presets.apis] : undefined,
   });
 
   if (root.dataset.defaultApiKey) {
