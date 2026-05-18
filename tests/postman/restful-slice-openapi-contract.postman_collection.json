@@ -25,6 +25,23 @@
       }
     ]
   },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://streetkots.ru",
+      "type": "string"
+    },
+    {
+      "key": "sampleModelPath",
+      "value": "/workspaces/restful-slice/tests/postman/fixtures/cube.stl",
+      "type": "string"
+    },
+    {
+      "key": "invalidFilePath",
+      "value": "/workspaces/restful-slice/tests/postman/fixtures/not-a-model.txt",
+      "type": "string"
+    }
+  ],
   "item": [
     {
       "name": "Inventory",

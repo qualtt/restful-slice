@@ -3,11 +3,15 @@ import logging
 import socket
 from contextlib import asynccontextmanager
 from functools import lru_cache
+from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Query, Request
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, UUID4
+from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Query, Request, Security
+from fastapi.openapi.docs import get_swagger_ui_oauth2_redirect_html
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.security import APIKeyHeader
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, UUID4, Field, ConfigDict
 from typing import Dict, Any, Optional, List
 
 from core.order_manager import OrderManager, OrderStatus
@@ -17,12 +21,15 @@ from core.rabbit_client import publish_slice_requested, start_results_consumer
 
 logger = logging.getLogger(__name__)
 
+SWAGGER_UI_DEFAULT_API_KEY = "demo-api-key"
+
 _API_KEY_TO_USER_ID = {
     "demo-api-key": "user-0001",
     "sample-api-key": "user-0002",
 }
 _ORDER_TO_API_KEY: dict[str, str] = {}
 _ORDER_TO_USER_ID: dict[str, str] = {}
+api_key_scheme = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 @lru_cache
@@ -132,9 +139,14 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="Order Service",
-    docs_url="/api/orders/docs",
+    docs_url=None,
     openapi_url="/api/orders/openapi.json",
     lifespan=lifespan,
+)
+app.mount(
+    "/api/orders/docs-assets",
+    StaticFiles(directory=Path(__file__).resolve().parent / "static"),
+    name="order-docs-assets",
 )
 
 
@@ -157,8 +169,16 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-router = APIRouter(prefix="/api/orders", tags=["Orders"])
-telemetry_router = APIRouter(prefix="/api/telemetry", tags=["Telemetry"])
+router = APIRouter(
+    prefix="/api/orders",
+    tags=["Orders"],
+    dependencies=[Security(api_key_scheme)],
+)
+telemetry_router = APIRouter(
+    prefix="/api/telemetry",
+    tags=["Telemetry"],
+    dependencies=[Security(api_key_scheme)],
+)
 health_router = APIRouter(tags=["Health"])
 order_db = OrderManager()
 
@@ -188,8 +208,25 @@ class UploadedFileResponse(BaseModel):
 
 
 class CreateOrderRequest(BaseModel):
-    fileId: UUID4
-    profileId: int
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "fileId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "profileId": 3,
+            }
+        }
+    )
+
+    fileId: UUID4 = Field(
+        ...,
+        description="ID файла, полученный после загрузки STL/3MF/STEP",
+        examples=["3fa85f64-5717-4562-b3fc-2c963f66afa6"],
+    )
+    profileId: int = Field(
+        ...,
+        description="ID профиля печати",
+        examples=[3],
+    )
 
 
 class SlicingResult(BaseModel):
@@ -228,6 +265,59 @@ class TelemetryEvent(BaseModel):
 class TelemetryBatchRequest(BaseModel):
     source: str
     events: List[TelemetryEvent]
+
+
+def _swagger_oauth2_redirect_path(request: Request) -> str:
+    if app.swagger_ui_oauth2_redirect_url:
+        return app.swagger_ui_oauth2_redirect_url
+    base_path = request.scope.get("root_path", "").rstrip("/")
+    return f"{base_path}/docs/oauth2-redirect"
+
+
+def _swagger_openapi_url(request: Request) -> str:
+    openapi_url = app.openapi_url or "/openapi.json"
+    root_path = request.scope.get("root_path", "").rstrip("/")
+    if openapi_url.startswith(("http://", "https://")):
+        return openapi_url
+    return f"{root_path}{openapi_url}"
+
+
+def _render_swagger_html(title: str, openapi_url: str, oauth2_redirect_url: str) -> str:
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title}</title>
+  <link rel="stylesheet" href="/api/orders/docs-assets/swagger-ui/swagger-ui.css">
+</head>
+<body>
+  <div
+    id="swagger-ui"
+    data-openapi-url="{openapi_url}"
+    data-oauth2-redirect-url="{oauth2_redirect_url}"
+    data-default-api-key="{SWAGGER_UI_DEFAULT_API_KEY}"
+    data-title="{title}"
+  ></div>
+  <script src="/api/orders/docs-assets/swagger-ui/swagger-ui-bundle.js"></script>
+  <script src="/api/orders/docs-assets/swagger-ui/docs-bootstrap.js"></script>
+</body>
+</html>"""
+
+
+@app.get("/api/orders/docs", include_in_schema=False)
+async def custom_order_docs(request: Request) -> HTMLResponse:
+    html = _render_swagger_html(
+        title=f"{app.title} - Swagger UI",
+        openapi_url=_swagger_openapi_url(request),
+        oauth2_redirect_url=_swagger_oauth2_redirect_path(request),
+    )
+    return HTMLResponse(html)
+
+
+@app.get(app.swagger_ui_oauth2_redirect_url, include_in_schema=False)
+async def swagger_ui_redirect() -> HTMLResponse:
+    return get_swagger_ui_oauth2_redirect_html()
 
 
 def _db_healthcheck() -> dict[str, object]:
@@ -287,7 +377,12 @@ async def health():
     return await health_ready()
 
 
-@router.post("/files", response_model=UploadedFileResponse, status_code=201)
+@router.post(
+    "/files",
+    response_model=UploadedFileResponse,
+    status_code=201,
+    summary="Upload model file",
+)
 async def upload_stl_file(file: UploadFile = File(...)):
     name_lower = (file.filename or "").lower()
     allowed_exts = (".stl", ".3mf", ".step", ".stp")
@@ -332,7 +427,11 @@ async def upload_stl_file(file: UploadFile = File(...)):
     return file_record
 
 
-@router.post("", response_model=OrderResponse, status_code=202)
+@router.post(
+    "",
+    response_model=OrderResponse,
+    status_code=202,
+)
 async def create_order(payload: CreateOrderRequest, request: Request):
     user_id = get_request_user_id(request)
     api_key = get_request_api_key(request)
@@ -367,9 +466,9 @@ async def create_order(payload: CreateOrderRequest, request: Request):
 
 @router.get("", response_model=OrderListResponse)
 async def list_orders(
-    page: int = Query(1, ge=1),
-    pageSize: int = Query(20, ge=1, le=100),
-    status: Optional[OrderStatus] = None,
+    page: int = Query(1, ge=1, examples=[1]),
+    pageSize: int = Query(20, ge=1, le=100, examples=[20]),
+    status: Optional[OrderStatus] = Query(None, examples=["priced"]),
 ):
     orders = order_db.list_orders()
     if status is not None:
