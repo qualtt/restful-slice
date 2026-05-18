@@ -1,0 +1,61 @@
+# Что ещё нужно (кроме конфигов)
+
+**Уже прописано в конфигах как upstream (два gateway):**
+
+| Роль   | IP               |
+|--------|------------------|
+| Gateway 1 | `155.212.221.216` |
+| Gateway 2 | `5.181.109.6`     |
+
+Порт по умолчанию **8080** — если gateway слушает другой порт, поменяйте в `configs/vps-c/nginx/example.com.conf` и `configs/vps-c/haproxy/haproxy.cfg`.
+
+---
+
+## 1. IP балансировщика (VPS-C)
+
+Ты дал только два IP — это похоже на **две машины с gateway**. Нужен ещё **третий VPS** (или тот же хост, если балансировщик отдельный), его публичный IP:
+
+- **DNS A/AAAA** для домена → **этот** IP.
+- **Firewall на gateway:** порт приложения (8080) пускать **только с IP VPS-C** (см. `load-balancer-nginx-vps-c.md`).
+- **Kong / Traefik:** в `configs/gateway/*` подставить **IP VPS-C** вместо `REPLACE_WITH_VPS_C_IP`, не путать с IP gateway.
+
+---
+
+## 2. Домен и TLS
+
+- Заменить `example.com` в `server_name` и путях Let’s Encrypt.
+- Выпустить сертификат (certbot webroot для Nginx или DNS-01 / standalone для HAProxy).
+- После первого деплоя Nginx: если сертификата ещё нет — временно не включать блок `:443` без правок (см. комментарий в конфиге).
+
+---
+
+## 3. Health
+
+- На **обоих** gateway должен отвечать **`GET /health`** с **200** (или поменяйте путь в HAProxy `option httpchk`).
+- Локально на каждой машине: `curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/health`
+
+---
+
+## 4. Проверка с балансировщика
+
+После развёртывания на VPS-C:
+
+```bash
+curl -sS -o /dev/null -w "%{http_code}\n" http://155.212.221.216:8080/health
+curl -sS -o /dev/null -w "%{http_code}\n" http://5.181.109.6:8080/health
+curl -I https://ваш-домен
+```
+
+Снаружи (после DNS и TLS): несколько запросов подряد — не должно быть стабильных 502, если оба gateway живы.
+
+---
+
+## 5. Кратко
+
+| Сделать | Кто |
+|--------|-----|
+| Установить nginx или haproxy, положить конфиг | VPS-C |
+| Открыть 80/443 с интернета | VPS-C |
+| Открыть 8080 (или ваш порт) **только с IP VPS-C** | 155.212… и 5.181… |
+| DNS → IP **VPS-C** | У регистратора |
+| `REPLACE_WITH_VPS_C_IP` в Kong/Traefik | Обе gateway-машины |

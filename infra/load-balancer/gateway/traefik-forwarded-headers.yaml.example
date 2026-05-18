@@ -1,0 +1,9 @@
+# Traefik: trustedIPs — только IP балансировщика VPS-C.
+# 155.212.221.216 и 5.181.109.6 — это gateway, их сюда не добавляйте.
+
+entryPoints:
+  gateway:
+    address: ":8080"
+    forwardedHeaders:
+      trustedIPs:
+        - "REPLACE_WITH_VPS_C_IP/32"
