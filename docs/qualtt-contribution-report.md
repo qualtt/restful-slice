@@ -304,6 +304,61 @@ RabbitMQ корректно перезапускался после обрыва
 - `6af7ad4` от `2026-05-17`
 - `cceba69` от `2026-05-17`
 
+## Ссылки на ключевые изменения в коде
+
+Ниже перечислены основные участки кода, которые относятся к функциональности,
+описанной в отчёте. Ссылки ведут на текущую версию файлов в репозитории.
+
+### API-контракты и модель профилей
+
+- [`docs/endpoints.yml`](endpoints.yml#L19-L22) описывает двухшаговое создание заказа: сначала загрузка файла через `POST /api/orders/files`, затем создание заказа через `POST /api/orders` с передачей `fileId` и `profileId`. Это закрепляет контракт, вокруг которого строится дальнейший order flow.
+- [`docs/endpoints.yml`](endpoints.yml#L140-L179) фиксирует поля заказа и запроса на создание заказа, включая `profileId`. Это важно для согласования `order-service` и `inventory-service`: заказ ссылается не на произвольный набор параметров, а на готовый профиль печати.
+- [`docs/asyncapi.yml`](asyncapi.yml#L15-L67) описывает две очереди RabbitMQ: `slicing.jobs` для задач нарезки и `slicing.results` для результата. По этому контракту `order-service` и `slicer-adapter` обмениваются событиями.
+- [`docs/asyncapi.yml`](asyncapi.yml#L119-L169) задаёт payload событий `slice.requested`, `slice.completed` и `slice.failed`. Здесь видно, какие MinIO-пути передаются в воркер и какие параметры нарезки возвращаются обратно в заказ.
+- [`docs/profiles.md`](profiles.md#L16-L32) описывает тестовые профили `Standard`, `Draft` и `High Quality`, а также их раскладку в MinIO по ключам `profiles/<profileId>/printer.json`, `process.json`, `filament.json`.
+
+### `slicer-adapter`
+
+- [`services/slicer-adapter/src/main.py`](../services/slicer-adapter/src/main.py#L17-L44) поднимает FastAPI-приложение, запускает RabbitMQ-worker в фоне и добавляет `/health`. Healthcheck проверяет не только факт работы HTTP-сервиса, но и доступность брокера через AMQP.
+- [`services/slicer-adapter/src/core/config.py`](../services/slicer-adapter/src/core/config.py#L17-L53) собирает настройки RabbitMQ, MinIO, Orca API и служебные поля событий. Это позволило запускать адаптер в docker-среде без захардкоженных адресов.
+- [`services/slicer-adapter/src/schemas/events.py`](../services/slicer-adapter/src/schemas/events.py#L18-L89) содержит Pydantic-схемы событий `slice.requested`, `slice.completed` и `slice.failed`. За счёт `extra="forbid"` некорректный payload отбрасывается сразу, а не проходит дальше в обработку.
+- [`services/slicer-adapter/src/clients/minio_client.py`](../services/slicer-adapter/src/clients/minio_client.py#L23-L56) реализует скачивание модели и профилей из MinIO, а также загрузку готового G-code обратно в bucket. Это связующий слой между очередью задач и файловым хранилищем.
+- [`services/slicer-adapter/src/clients/orca_client.py`](../services/slicer-adapter/src/clients/orca_client.py#L33-L123) формирует multipart-запрос в Orca Slicer API, выбирает MIME-тип модели по расширению, извлекает метаданные из HTTP-заголовков и проверяет, что ответ действительно похож на G-code.
+- [`services/slicer-adapter/src/core/processor.py`](../services/slicer-adapter/src/core/processor.py#L61-L150) содержит основную бизнес-логику воркера: валидация `slice.requested`, скачивание входных файлов, вызов Orca, загрузка `result.gcode`, публикация `slice.completed` или `slice.failed`.
+- [`services/slicer-adapter/src/clients/rabbit_client.py`](../services/slicer-adapter/src/clients/rabbit_client.py#L19-L40) отвечает за `ack/reject` сообщений. Если результат не удалось опубликовать, сообщение возвращается в очередь, а при фатальной ошибке отклоняется без бесконечного retry.
+- [`services/slicer-adapter/src/clients/rabbit_client.py`](../services/slicer-adapter/src/clients/rabbit_client.py#L92-L159) добавляет retry при публикации результата и бесконечный цикл consumer-а с переподключением после падения RabbitMQ-соединения.
+
+### `order-service`
+
+- [`services/order-service/core/config.py`](../services/order-service/core/config.py#L16-L48) добавляет настройки RabbitMQ, MinIO и `inventory-service`. Через них `order-service` стал не только CRUD-сервисом, но и оркестратором внешних интеграций.
+- [`services/order-service/core/minio_client.py`](../services/order-service/core/minio_client.py#L14-L39) загружает файл модели в MinIO и возвращает `object_key`. Этот ключ затем сохраняется в БД и передаётся в событии `slice.requested`.
+- [`services/order-service/core/order_manager.py`](../services/order-service/core/order_manager.py#L53-L77) сохраняет метаданные файла и отдельное поле `objectKey`. Это позволяет отделить пользовательский `fileId` от реального пути объекта в MinIO.
+- [`services/order-service/core/order_manager.py`](../services/order-service/core/order_manager.py#L82-L153) создаёт заказ, хранит `profileId` и контролирует переходы статусов. Важная часть здесь - разрешённый переход `pending -> slicing -> priced` и обработка ошибок через `failed`.
+- [`services/order-service/core/rabbit_client.py`](../services/order-service/core/rabbit_client.py#L19-L63) публикует событие `slice.requested` в очередь `slicing.jobs`. В payload передаются `order_id` и MinIO-пути к модели и трём профилям печати.
+- [`services/order-service/core/rabbit_client.py`](../services/order-service/core/rabbit_client.py#L65-L96) запускает фоновый consumer очереди `slicing.results`, который принимает события от `slicer-adapter` и передаёт их в обработчик заказа.
+- [`services/order-service/main.py`](../services/order-service/main.py#L30-L91) обрабатывает `slice.completed` и `slice.failed`. При успехе сервис вызывает внутренний reserve API инвентаря, получает цену и переводит заказ в `priced`; при ошибке переводит заказ в `failed`.
+- [`services/order-service/main.py`](../services/order-service/main.py#L201-L271) реализует два ключевых endpoint-а order flow: загрузку модели в MinIO и создание заказа с публикацией задачи нарезки.
+
+### `inventory-service` и профили печати
+
+- [`services/inventory-service/main.py`](../services/inventory-service/main.py#L127-L176) содержит справочники процессов и профилей печати. Здесь добавлены профили `profileId=4` и `profileId=5`, которые отличаются процессом печати и коэффициентом наценки.
+- [`services/inventory-service/main.py`](../services/inventory-service/main.py#L179-L217) отдаёт список профилей и карточку конкретного профиля через API. Это позволяет клиенту и тестам выбирать доступный профиль печати до создания заказа.
+- [`services/inventory-service/main.py`](../services/inventory-service/main.py#L256-L296) реализует внутренний endpoint резервирования материала. Он проверяет профиль, резервирует рассчитанный вес пластика и возвращает цену, которую `order-service` сохраняет в `slicingResult`.
+
+### Тесты, миграции тестовой БД и фикстуры
+
+- [`services/order-service/core/database.py`](../services/order-service/core/database.py#L35-L49) и [`services/inventory-service/core/database.py`](../services/inventory-service/core/database.py#L34-L48) проверяют наличие базовых таблиц и умеют применить Alembic-миграции, если тестовая БД ещё не подготовлена.
+- [`services/order-service/core/database.py`](../services/order-service/core/database.py#L51-L78) содержит mapper-ы строк БД в API-формат заказа и файла, включая восстановленный `@staticmethod` для row-mapper-а.
+- [`services/order-service/core/database.py`](../services/order-service/core/database.py#L269-L279) и [`services/inventory-service/core/database.py`](../services/inventory-service/core/database.py#L227-L240) очищают тестовые таблицы после проверки схемы. Это делает unit/integration-тесты воспроизводимыми на пустой БД.
+- [`services/slicer-adapter/tests/test_processor.py`](../services/slicer-adapter/tests/test_processor.py#L16-L83) проверяет успешную обработку задачи нарезки: скачивание файлов, вызов Orca, загрузку G-code и публикацию `slice.completed`.
+- [`services/slicer-adapter/tests/test_processor.py`](../services/slicer-adapter/tests/test_processor.py#L91-L188) проверяет сценарии ошибок: падение Orca и невалидный payload должны приводить к `slice.failed`, чтобы заказ не зависал в `slicing`.
+- [`services/slicer-adapter/tests/test_rabbit_client.py`](../services/slicer-adapter/tests/test_rabbit_client.py#L19-L64) покрывает retry-публикацию, requeue при временной ошибке и обычный `ack` при успешной обработке сообщения.
+- [`services/slicer-adapter/tests/test_orca_client.py`](../services/slicer-adapter/tests/test_orca_client.py#L14-L72) проверяет извлечение человекочитаемой ошибки Orca API и сохранение локальных ошибок валидации G-code.
+- [`services/tests/test_order_logic.py`](../services/tests/test_order_logic.py#L71-L109) проверяет, что ошибка резервирования материала переводит заказ в `failed`, а не оставляет его в промежуточном состоянии.
+- [`services/tests/test_inventory_profiles_api.py`](../services/tests/test_inventory_profiles_api.py#L80-L107) проверяет выдачу трёх профилей печати и корректность данных для `High Quality`.
+- [`infra/scripts/load-fixtures.sh`](../infra/scripts/load-fixtures.sh#L13-L61) загружает fixture-профили в MinIO, зеркалируя `tests/postman/fixtures/profiles` в `s3://3d-models/profiles/`.
+- [`tests/postman/README.md`](../tests/postman/README.md#L9-L31) перечисляет Postman-коллекции и fixture-файлы, а [`tests/postman/README.md`](../tests/postman/README.md#L90-L121) описывает запуск happy-path сценария и Newman.
+
 ## Итоговый результат
 
 По итогам выполненной работы мой вклад в проект можно кратко сформулировать
