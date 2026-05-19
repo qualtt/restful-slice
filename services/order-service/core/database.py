@@ -394,6 +394,10 @@ class PostgresDB:
         self._column_cache.clear()
         with self._connect() as conn:
             with conn.cursor() as cur:
+                if not self._core_tables_exist(cur):
+                    self._apply_migrations()
+        with self._connect() as conn:
+            with conn.cursor() as cur:
                 cur.execute("TRUNCATE TABLE orders, files RESTART IDENTITY CASCADE")
         self._order_identity_fallback.clear()
 
