@@ -521,9 +521,11 @@ docker compose up --build -d
 
 - [infra/monitoring/docker-stack-monitor.yml](infra/monitoring/docker-stack-monitor.yml)
 
-Prometheus монтирует `docker.sock` на менеджере и через Swarm SD подбирает таски **по имени сервиса** (`*_cadvisor`, `*_node-exporter`), затем выставляет `instance` в **`hostname_ноды:порт`**, если у ноды в кластере задан нормальный hostname (см. `docker node ls`). Лейблы `prometheus-job` в compose необязательны.
+Prometheus забирает cAdvisor и node-exporter через **DNS SD** (`tasks.monitoring_*`). Это стабильнее, чем dockerswarm SD с фильтром по `service name`: у Swarm в API имя бывает и **`monitoring_cadvisor`**, и короткое **`cadvisor`**, из‑за жёсткого regex все цели могли отфильтроваться → пустые графики. Стек в CI деплоится как **`monitoring`**.
 
-Если после деплоя в Grafana **пустые графики**, откройте Prometheus → **Status → Targets**: при **0** целей в `cadvisor` проверьте сокет и что stack называется так же, как в именах сервисов (по умолчанию деплой **`monitoring`** → `monitoring_cadvisor`). Если целей **UP**, но в Grafana всё ещё только IP — у нод часто hostname совпадает с IP; задайте имена на ОС или через облачный cloud-init.
+`instance` в метриках снова будет **overlay-IP:порт** (как до эксперимента с relabel). Имена нод в UI — через hostname на ВМ или настройку переменных Grafana.
+
+Если графики пустые: Prometheus → **Status → Targets** (`cadvisor`, `node-exporter`).
 
 Имя Swarm config для Prometheus задаётся **хешем** `prometheus.yml` (`MONITORING_PROM_CONFIG_VERSION`, первые 12 символов sha256): в CI это подставляется через `envsubst` перед `docker stack deploy`. Локально из `infra/monitoring`:  
 `export MONITORING_PROM_CONFIG_VERSION="$(sha256sum prometheus.yml | cut -c1-12)"` и затем `envsubst '$MONITORING_PROM_CONFIG_VERSION' < docker-stack-monitor.yml > stack-resolved-monitor.yml`.
