@@ -64,8 +64,6 @@ services:
       - monitoring_net
     deploy:
       mode: global
-      labels:
-        prometheus-job: node-exporter
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.2 # Обновлено на стабильную новую версию
@@ -83,8 +81,6 @@ services:
       - monitoring_net
     deploy:
       mode: global
-      labels:
-        prometheus-job: cadvisor
 
   promtail:
     image: grafana/promtail:2.9.2
