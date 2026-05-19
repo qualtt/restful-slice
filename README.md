@@ -523,7 +523,8 @@ docker compose up --build -d
 
 Prometheus монтирует `docker.sock` на менеджере и через Swarm SD выставляет лейбл `instance` как **hostname ноды** (`worker-1:8080` и т.д.), чтобы в Grafana не светились overlay-IP тасков. У сервисов `node-exporter` и `cadvisor` в stack задан лейбл `prometheus-job` для отбора целей.
 
-После правок `prometheus.yml` при деплое нужно **увеличить версию** объекта `prom_config_v*` в `docker-stack-monitor.yml` (в Swarm нельзя обновить *содержимое* config, только лейблы — иначе ошибка «only updates to Labels are allowed»).
+Имя Swarm config для Prometheus задаётся **хешем** `prometheus.yml` (`MONITORING_PROM_CONFIG_VERSION`, первые 12 символов sha256): в CI это подставляется через `envsubst` перед `docker stack deploy`. Локально из `infra/monitoring`:  
+`export MONITORING_PROM_CONFIG_VERSION="$(sha256sum prometheus.yml | cut -c1-12)"` и затем `envsubst '$MONITORING_PROM_CONFIG_VERSION' < docker-stack-monitor.yml > stack-resolved-monitor.yml`.
 
 ## Важные детали
 

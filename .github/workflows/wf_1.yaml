@@ -572,9 +572,11 @@ jobs:
           wait_for_docs_assets "http://127.0.0.1/api/orders/docs-assets/swagger-ui/docs-bootstrap.js" restful-slice_order_service
           wait_for_docs_assets "http://127.0.0.1/api/inventory/docs-assets/swagger-ui/docs-bootstrap.js" restful-slice_inventory_service
 
-          # 4. Аналогично для мониторинга
+          # 4. Аналогично для мониторинга (immutable config: имя от хеша prometheus.yml)
           cd infra/monitoring
-          envsubst < docker-stack-monitor.yml > stack-resolved-monitor.yml
+          export MONITORING_PROM_CONFIG_VERSION="$(sha256sum prometheus.yml | cut -c1-12)"
+          echo "MONITORING_PROM_CONFIG_VERSION=$MONITORING_PROM_CONFIG_VERSION"
+          envsubst '$MONITORING_PROM_CONFIG_VERSION' < docker-stack-monitor.yml > stack-resolved-monitor.yml
           stack_deploy_with_retry 3 docker stack deploy -c stack-resolved-monitor.yml monitoring
 
       - name: Load MinIO fixtures into Swarm stack
